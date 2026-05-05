@@ -116,7 +116,7 @@ export function AgentPipeline({ steps, isLoading }: AgentPipelineProps) {
                   {index + 1}. {step.label}
                 </p>
                 {step.output ? (
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-400">
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-400">
                     {step.output}
                   </p>
                 ) : (

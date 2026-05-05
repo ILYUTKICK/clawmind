@@ -8,6 +8,7 @@ import { getComputeProviderLabel } from "@/lib/compute/compute-status";
 import {
   formatMemoryContext,
   getRelevantMemories,
+  saveGeneratedMemoryRecord,
 } from "@/lib/memory/memory-manager";
 import { saveAnalysisReceipt } from "@/lib/storage/storage-receipt";
 import { AgentName, AgentStep, AnalysisResult } from "@/lib/types";
@@ -105,18 +106,32 @@ export async function runAnalysis(task: string): Promise<AnalysisResult> {
   );
 
   const receipt = await saveAnalysisReceipt({
-    task,
-    report: finalResult.report,
-  });
+  task,
+  report: finalResult.report,
+});
 
-  steps.push(
-    createCompletedStep(
-      "memory_writer",
-      "Memory Writer",
-      JSON.stringify(finalResult.report),
-      `Saved analysis through ${receipt.provider}. Compute provider: ${computeProvider}. Receipt: ${receipt.reportHash}`
-    )
-  );
+const generatedMemory = await saveGeneratedMemoryRecord({
+  task,
+  report: finalResult.report,
+  storageUri: receipt.storageUri,
+});
+
+steps.push(
+  createCompletedStep(
+    "memory_writer",
+    "Memory Writer",
+    JSON.stringify({
+      report: finalResult.report,
+      memory: generatedMemory,
+    }),
+    [
+      `Saved analysis through ${receipt.provider}.`,
+      `Compute provider: ${computeProvider}.`,
+      `Receipt: ${receipt.reportHash}.`,
+      `Generated persistent memory: ${generatedMemory.id}.`,
+    ].join(" ")
+  )
+);
 
   return {
     task,

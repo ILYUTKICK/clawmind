@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import { mockMemories } from "@/lib/demo/mock-memory";
+import { getAllMemories } from "@/lib/memory/memory-manager";
 
 export async function GET() {
+  const memories = await getAllMemories();
+
   return NextResponse.json(
     {
-      memories: mockMemories,
+      memories,
     },
     { status: 200 }
   );

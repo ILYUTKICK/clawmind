@@ -1,8 +1,119 @@
-import { findRelevantMockMemories } from "@/lib/demo/mock-memory";
-import { MemoryRecord } from "@/lib/types";
+import { mockMemories } from "@/lib/demo/mock-memory";
+import { AnalysisReport, MemoryRecord } from "@/lib/types";
+import {
+  appendPersistentMemory,
+  readPersistentMemories,
+} from "@/lib/memory/persistent-memory-store";
 
-export async function getRelevantMemories(task: string): Promise<MemoryRecord[]> {
-  return findRelevantMockMemories(task);
+type ScoredMemory = {
+  memory: MemoryRecord;
+  score: number;
+};
+
+function normalizeText(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
+}
+
+function extractKeywords(text: string): string[] {
+  const stopWords = new Set([
+    "this",
+    "that",
+    "with",
+    "from",
+    "into",
+    "over",
+    "under",
+    "across",
+    "protocol",
+    "project",
+    "analyze",
+    "agent",
+    "system",
+    "using",
+    "uses",
+    "while",
+    "should",
+    "would",
+    "could",
+    "about",
+    "through",
+    "between",
+    "multiple",
+  ]);
+
+  return normalizeText(text)
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length >= 4)
+    .filter((word) => !stopWords.has(word));
+}
+
+function scoreMemory(task: string, memory: MemoryRecord): number {
+  const keywords = extractKeywords(task);
+
+  const searchableMemoryText = normalizeText(
+    [
+      memory.task,
+      memory.summary,
+      memory.recommendation,
+      String(memory.score),
+      memory.storageUri || "",
+      ...memory.risks,
+    ].join(" ")
+  );
+
+  const keywordScore = keywords.reduce((total, keyword) => {
+    return searchableMemoryText.includes(keyword) ? total + 1 : total;
+  }, 0);
+
+  const riskBoost = memory.risks.some((risk) => {
+    return normalizeText(task).includes(normalizeText(risk));
+  })
+    ? 3
+    : 0;
+
+  const storageBoost = memory.storageUri?.startsWith("0g://") ? 1 : 0;
+
+  return keywordScore + riskBoost + storageBoost;
+}
+
+export async function getAllMemories(): Promise<MemoryRecord[]> {
+  const persistentMemories = await readPersistentMemories();
+
+  const seenIds = new Set<string>();
+  const allMemories: MemoryRecord[] = [];
+
+  for (const memory of [...persistentMemories, ...mockMemories]) {
+    if (!seenIds.has(memory.id)) {
+      seenIds.add(memory.id);
+      allMemories.push(memory);
+    }
+  }
+
+  return allMemories;
+}
+
+export async function getRelevantMemories(
+  task: string
+): Promise<MemoryRecord[]> {
+  const allMemories = await getAllMemories();
+
+  const scoredMemories: ScoredMemory[] = allMemories.map((memory) => ({
+    memory,
+    score: scoreMemory(task, memory),
+  }));
+
+  const relevantMemories = scoredMemories
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.memory)
+    .slice(0, 3);
+
+  if (relevantMemories.length > 0) {
+    return relevantMemories;
+  }
+
+  return allMemories.slice(0, 2);
 }
 
 export function formatMemoryContext(memories: MemoryRecord[]): string {
@@ -23,4 +134,27 @@ export function formatMemoryContext(memories: MemoryRecord[]): string {
       ].join("\n");
     })
     .join("\n\n");
+}
+
+export async function saveGeneratedMemoryRecord(input: {
+  task: string;
+  report: AnalysisReport;
+  storageUri?: string;
+}): Promise<MemoryRecord> {
+  const createdAt = new Date().toISOString();
+
+  const memory: MemoryRecord = {
+    id: `mem_generated_${Date.now()}`,
+    task: input.task,
+    summary: input.report.summary,
+    risks: input.report.risks.map((risk) => risk.title),
+    recommendation: input.report.recommendation,
+    score: input.report.score,
+    storageUri: input.storageUri,
+    createdAt,
+  };
+
+  await appendPersistentMemory(memory);
+
+  return memory;
 }
