@@ -7,6 +7,8 @@ import { MemoryPanel } from "@/components/MemoryPanel";
 import { ReportView } from "@/components/ReportView";
 import { StorageReceipt } from "@/components/StorageReceipt";
 import { RetrievedReportPanel } from "@/components/RetrievedReportPanel";
+import { SystemStatus } from "@/components/SystemStatus";
+import { TrackFitPanel } from "@/components/TrackFitPanel";
 import { AnalysisResult } from "@/lib/types";
 
 export default function HomePage() {
@@ -46,7 +48,11 @@ export default function HomePage() {
       setIsLoading(false);
     }
   }
-
+  const hasPersistentMemories =
+    analysis?.relevantMemories.some((memory) =>
+      memory.id.startsWith("mem_generated_")
+    ) || false;
+    
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.16),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(168,85,247,0.14),_transparent_30%)]" />
@@ -92,6 +98,11 @@ export default function HomePage() {
               </div>
             ) : null}
 
+            <SystemStatus
+              receipt={analysis?.receipt}
+              hasPersistentMemories={hasPersistentMemories}
+            />
+            <TrackFitPanel />
             <MemoryPanel memories={analysis?.relevantMemories || []} />
             <StorageReceipt receipt={analysis?.receipt} />
             <RetrievedReportPanel defaultStorageUri={analysis?.receipt.storageUri} />
