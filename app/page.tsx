@@ -6,6 +6,7 @@ import { InputForm } from "@/components/InputForm";
 import { MemoryPanel } from "@/components/MemoryPanel";
 import { ReportView } from "@/components/ReportView";
 import { StorageReceipt } from "@/components/StorageReceipt";
+import { RetrievedReportPanel } from "@/components/RetrievedReportPanel";
 import { AnalysisResult } from "@/lib/types";
 
 export default function HomePage() {
@@ -93,6 +94,7 @@ export default function HomePage() {
 
             <MemoryPanel memories={analysis?.relevantMemories || []} />
             <StorageReceipt receipt={analysis?.receipt} />
+            <RetrievedReportPanel defaultStorageUri={analysis?.receipt.storageUri} />
           </div>
 
           <div className="flex flex-col gap-8">
