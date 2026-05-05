@@ -1,0 +1,69 @@
+export type AgentStatus = "pending" | "running" | "completed" | "failed";
+
+export type AgentName =
+  | "memory_retrieval"
+  | "planner"
+  | "researcher"
+  | "risk_agent"
+  | "architect"
+  | "critic"
+  | "final_agent"
+  | "memory_writer";
+
+export type AgentStep = {
+  name: AgentName;
+  label: string;
+  status: AgentStatus;
+  input?: string;
+  output?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  error?: string;
+};
+
+export type RiskSeverity = "low" | "medium" | "high" | "critical";
+
+export type RiskItem = {
+  title: string;
+  severity: RiskSeverity;
+  explanation: string;
+};
+
+export type Recommendation = "GO" | "NO_GO" | "INVESTIGATE_MORE";
+
+export type AnalysisReport = {
+  summary: string;
+  score: number;
+  recommendation: Recommendation;
+  risks: RiskItem[];
+  opportunities: string[];
+  architecture: string[];
+  nextSteps: string[];
+  evidence: string[];
+};
+
+export type MemoryRecord = {
+  id: string;
+  task: string;
+  summary: string;
+  risks: string[];
+  recommendation: Recommendation;
+  score: number;
+  storageUri?: string;
+  createdAt: string;
+};
+
+export type StorageReceipt = {
+  reportHash: string;
+  storageUri?: string;
+  provider: "0G_STORAGE" | "LOCAL_FALLBACK";
+  createdAt: string;
+};
+
+export type AnalysisResult = {
+  task: string;
+  steps: AgentStep[];
+  relevantMemories: MemoryRecord[];
+  report: AnalysisReport;
+  receipt: StorageReceipt;
+};
