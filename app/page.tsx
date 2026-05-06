@@ -35,8 +35,10 @@ export default function HomePage() {
       };
 
       if (!response.ok) {
-        throw new Error(data.error || "Analysis request failed.");
-      }
+        throw new Error(
+      data.details || data.error || "Analysis request failed."
+    );
+    }
 
       setAnalysis(data);
     } catch (error) {
