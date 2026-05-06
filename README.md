@@ -338,25 +338,24 @@ ZERO_G_STORAGE_ENABLED=true
 ZERO_G_STORAGE_PRIVATE_KEY=your_testnet_burner_wallet_private_key
 ZERO_G_STORAGE_EVM_RPC=https://evmrpc-testnet.0g.ai
 ZERO_G_STORAGE_INDEXER_RPC=https://indexer-storage-testnet-turbo.0g.ai
+```
 
 Security notes:
 
-Do not deploy with a main wallet private key.
-Use a burner wallet with testnet funds only.
-Never commit .env.local.
-Keep .env.example public and secret-free.
-If 0G Storage is disabled, ClawMind falls back to local receipt mode.
+- Do not deploy with a main wallet private key.
+- Use a burner wallet with testnet funds only.
+- Never commit `.env.local`.
+- Keep `.env.example` public and secret-free.
+- If 0G Storage is disabled, ClawMind falls back to local receipt mode.
 
 Production check flow:
 
-Run analysis.
-Confirm 0G Compute agent execution.
-Confirm Provider: 0G_STORAGE.
-Copy the Storage URI.
-Retrieve the report through the retrieval panel.
-Confirm persistent memory appears in later analysis runs.
-
----
+1. Run analysis.
+2. Confirm 0G Compute agent execution.
+3. Confirm `Provider: 0G_STORAGE`.
+4. Copy the `Storage URI`.
+5. Retrieve the report through the retrieval panel.
+6. Confirm persistent memory appears in later analysis runs.
 
 ## Current Features
 
@@ -435,17 +434,20 @@ ClawMind v0.4
 - 0G Compute integration
 - 0G Storage integration
 - Decision Receipt
+- Real memory persistence
+- 0G report retrieval by root hash
+- System Status panel
+- Track 1 Fit panel
 - Production build
 
 ### Next
 
-- Real memory persistence
-- Store generated memory records in 0G Storage
-- Retrieve previous memory records across runs
-- Add report retrieval by 0G root hash
-- Improve OpenClaw-compatible orchestration metadata
+- Deploy public demo
 - Add document and URL analysis
-- Deploy demo
+- Store generated memory index directly in 0G Storage
+- Add OpenClaw-compatible orchestration metadata
+- Add architecture diagram
+- Prepare final hackathon submission package
 
 ---
 
