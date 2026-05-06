@@ -1,25 +1,41 @@
 import { promises as fs } from "fs";
+import os from "os";
 import path from "path";
 import { MemoryRecord } from "@/lib/types";
 
-const MEMORY_DIR = path.join(process.cwd(), ".clawmind");
-const MEMORY_FILE = path.join(MEMORY_DIR, "memories.json");
+function getMemoryDir(): string {
+  const isVercel = process.env.VERCEL === "1";
+
+  if (isVercel) {
+    return path.join(os.tmpdir(), "clawmind");
+  }
+
+  return path.join(process.cwd(), ".clawmind");
+}
+
+function getMemoryFile(): string {
+  return path.join(getMemoryDir(), "memories.json");
+}
 
 async function ensureMemoryFileExists(): Promise<void> {
-  await fs.mkdir(MEMORY_DIR, { recursive: true });
+  const memoryDir = getMemoryDir();
+  const memoryFile = getMemoryFile();
+
+  await fs.mkdir(memoryDir, { recursive: true });
 
   try {
-    await fs.access(MEMORY_FILE);
+    await fs.access(memoryFile);
   } catch {
-    await fs.writeFile(MEMORY_FILE, JSON.stringify([], null, 2), "utf-8");
+    await fs.writeFile(memoryFile, JSON.stringify([], null, 2), "utf-8");
   }
 }
 
 export async function readPersistentMemories(): Promise<MemoryRecord[]> {
-  await ensureMemoryFileExists();
-
   try {
-    const raw = await fs.readFile(MEMORY_FILE, "utf-8");
+    await ensureMemoryFileExists();
+
+    const memoryFile = getMemoryFile();
+    const raw = await fs.readFile(memoryFile, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
 
     if (!Array.isArray(parsed)) {
@@ -27,7 +43,13 @@ export async function readPersistentMemories(): Promise<MemoryRecord[]> {
     }
 
     return parsed.filter(isMemoryRecord);
-  } catch {
+  } catch (error) {
+    console.warn(
+      `[Memory Store] Failed to read persistent memories: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+
     return [];
   }
 }
@@ -35,17 +57,27 @@ export async function readPersistentMemories(): Promise<MemoryRecord[]> {
 export async function writePersistentMemories(
   memories: MemoryRecord[]
 ): Promise<void> {
-  await ensureMemoryFileExists();
+  try {
+    await ensureMemoryFileExists();
 
-  const sortedMemories = [...memories].sort((a, b) => {
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+    const memoryFile = getMemoryFile();
 
-  await fs.writeFile(
-    MEMORY_FILE,
-    JSON.stringify(sortedMemories, null, 2),
-    "utf-8"
-  );
+    const sortedMemories = [...memories].sort((a, b) => {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    await fs.writeFile(
+      memoryFile,
+      JSON.stringify(sortedMemories, null, 2),
+      "utf-8"
+    );
+  } catch (error) {
+    console.warn(
+      `[Memory Store] Failed to write persistent memories: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+  }
 }
 
 export async function appendPersistentMemory(
