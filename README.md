@@ -323,6 +323,41 @@ Use a testnet burner wallet only.
 
 ---
 
+## Deployment Notes
+
+ClawMind can be deployed to Vercel as a Next.js application.
+
+Required production environment variables:
+
+```env
+ZERO_G_COMPUTE_ENDPOINT=https://router-api.0g.ai/v1/chat/completions
+ZERO_G_COMPUTE_API_KEY=your_0g_router_api_key
+ZERO_G_COMPUTE_MODEL=your_0g_model
+
+ZERO_G_STORAGE_ENABLED=true
+ZERO_G_STORAGE_PRIVATE_KEY=your_testnet_burner_wallet_private_key
+ZERO_G_STORAGE_EVM_RPC=https://evmrpc-testnet.0g.ai
+ZERO_G_STORAGE_INDEXER_RPC=https://indexer-storage-testnet-turbo.0g.ai
+
+Security notes:
+
+Do not deploy with a main wallet private key.
+Use a burner wallet with testnet funds only.
+Never commit .env.local.
+Keep .env.example public and secret-free.
+If 0G Storage is disabled, ClawMind falls back to local receipt mode.
+
+Production check flow:
+
+Run analysis.
+Confirm 0G Compute agent execution.
+Confirm Provider: 0G_STORAGE.
+Copy the Storage URI.
+Retrieve the report through the retrieval panel.
+Confirm persistent memory appears in later analysis runs.
+
+---
+
 ## Current Features
 
 - Multi-agent analysis pipeline
@@ -338,7 +373,7 @@ Use a testnet burner wallet only.
 
 ---
 
-## Current Status
+## Version History
 
 ```txt
 ClawMind v0.4
@@ -352,7 +387,42 @@ ClawMind v0.4
 └─ Production build passing
 ```
 
----
+
+### v0.5.0 — MVP with 0G Compute and 0G Storage
+
+- Built the initial ClawMind MVP
+- Added multi-agent UI
+- Added agent pipeline
+- Added 0G Compute integration
+- Added 0G Storage report persistence
+- Added README and demo script
+
+### v0.6.0 — Real Memory Persistence
+
+- Added generated memory records
+- Persisted memory records locally
+- Reused generated memories in future analysis runs
+- Updated `/api/memory` to return persistent memories
+
+### v0.7.0 — 0G Report Retrieval
+
+- Added report retrieval by 0G root hash
+- Added `/api/report/retrieve`
+- Added retrieval UI panel
+- Enabled verification of stored reports through 0G Storage
+
+### v0.8.0 — Demo Polish and Track Fit Panel
+
+- Added System Status panel
+- Added Track 1 Fit panel
+- Improved demo readability
+- Highlighted 0G Compute, 0G Storage, memory, and retrieval status
+
+### v0.9.0 — Deployment Readiness
+
+- Added `.env.example`
+- Added deployment notes
+- Prepared project for public demo deployment
 
 ## Roadmap
 
