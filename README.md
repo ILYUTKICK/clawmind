@@ -6,6 +6,9 @@ ClawMind is an agentic infrastructure project built for **0G APAC Track 1: Agent
 
 It is not a chatbot. It is a modular multi-agent decision engine that plans, analyzes, critiques, stores, and reuses decision context across runs.
 
+**Live Demo:** https://clawmind-puce.vercel.app  
+**GitHub:** https://github.com/ILYUTKICK/clawmind
+
 ---
 
 ## Track Fit
