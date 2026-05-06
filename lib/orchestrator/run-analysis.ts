@@ -5,6 +5,7 @@ import { runPlannerAgent } from "@/lib/agents/planner";
 import { runResearchAgent } from "@/lib/agents/researcher";
 import { runRiskAgent } from "@/lib/agents/risk-agent";
 import { getComputeProviderLabel } from "@/lib/compute/compute-status";
+import { saveMemoryIndexToZeroGStorage } from "@/lib/storage/zero-g-memory-index";
 import {
   formatMemoryContext,
   getRelevantMemories,
@@ -110,10 +111,14 @@ export async function runAnalysis(task: string): Promise<AnalysisResult> {
   report: finalResult.report,
 });
 
-const generatedMemory = await saveGeneratedMemoryRecord({
+const generatedMemoryResult = await saveGeneratedMemoryRecord({
   task,
   report: finalResult.report,
   storageUri: receipt.storageUri,
+});
+
+const memoryIndexReceipt = await saveMemoryIndexToZeroGStorage({
+  memories: generatedMemoryResult.memories,
 });
 
 steps.push(
@@ -122,13 +127,16 @@ steps.push(
     "Memory Writer",
     JSON.stringify({
       report: finalResult.report,
-      memory: generatedMemory,
+      memory: generatedMemoryResult.memory,
+      memoryIndexReceipt,
     }),
     [
       `Saved analysis through ${receipt.provider}.`,
       `Compute provider: ${computeProvider}.`,
       `Receipt: ${receipt.reportHash}.`,
-      `Generated persistent memory: ${generatedMemory.id}.`,
+      `Generated persistent memory: ${generatedMemoryResult.memory.id}.`,
+      `Memory index provider: ${memoryIndexReceipt.provider}.`,
+      `Memory index URI: ${memoryIndexReceipt.storageUri}.`,
     ].join(" ")
   )
 );
@@ -139,5 +147,6 @@ steps.push(
     relevantMemories,
     report: finalResult.report,
     receipt,
+    memoryIndexReceipt,
   };
 }

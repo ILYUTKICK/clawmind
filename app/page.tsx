@@ -10,6 +10,7 @@ import { RetrievedReportPanel } from "@/components/RetrievedReportPanel";
 import { SystemStatus } from "@/components/SystemStatus";
 import { TrackFitPanel } from "@/components/TrackFitPanel";
 import { AnalysisResult } from "@/lib/types";
+import { MemoryIndexReceipt } from "@/components/MemoryIndexReceipt";
 
 export default function HomePage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -107,6 +108,7 @@ export default function HomePage() {
             <TrackFitPanel />
             <MemoryPanel memories={analysis?.relevantMemories || []} />
             <StorageReceipt receipt={analysis?.receipt} />
+            <MemoryIndexReceipt receipt={analysis?.memoryIndexReceipt} />
             <RetrievedReportPanel defaultStorageUri={analysis?.receipt.storageUri} />
           </div>
 

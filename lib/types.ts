@@ -66,4 +66,5 @@ export type AnalysisResult = {
   relevantMemories: MemoryRecord[];
   report: AnalysisReport;
   receipt: StorageReceipt;
+  memoryIndexReceipt?: StorageReceipt;
 };

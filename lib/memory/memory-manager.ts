@@ -140,7 +140,10 @@ export async function saveGeneratedMemoryRecord(input: {
   task: string;
   report: AnalysisReport;
   storageUri?: string;
-}): Promise<MemoryRecord> {
+}): Promise<{
+  memory: MemoryRecord;
+  memories: MemoryRecord[];
+}> {
   const createdAt = new Date().toISOString();
 
   const memory: MemoryRecord = {
@@ -154,7 +157,10 @@ export async function saveGeneratedMemoryRecord(input: {
     createdAt,
   };
 
-  await appendPersistentMemory(memory);
+  const memories = await appendPersistentMemory(memory);
 
-  return memory;
+  return {
+    memory,
+    memories,
+  };
 }
