@@ -12,8 +12,7 @@ export function MemoryPanel({ memories }: MemoryPanelProps) {
           Relevant Memories Used
         </h2>
         <p className="mt-1 text-sm text-zinc-400">
-          These records simulate persistent long-context memory. Next step:
-          store and retrieve them through 0G Storage.
+          These records combine persisted 0G memories and optional seed memories used for long-context reasoning.
         </p>
       </div>
 

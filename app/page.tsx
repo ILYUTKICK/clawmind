@@ -11,6 +11,8 @@ import { SystemStatus } from "@/components/SystemStatus";
 import { TrackFitPanel } from "@/components/TrackFitPanel";
 import { AnalysisResult } from "@/lib/types";
 import { MemoryIndexReceipt } from "@/components/MemoryIndexReceipt";
+import { InfrastructureEvidence } from "@/components/InfrastructureEvidence";
+
 
 export default function HomePage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -97,6 +99,7 @@ export default function HomePage() {
             ) : null}
 
             <SystemStatus analysis={analysis} />
+            <InfrastructureEvidence analysis={analysis} />
             <TrackFitPanel />
             {analysis ? (
               <>
