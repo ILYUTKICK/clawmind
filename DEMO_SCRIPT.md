@@ -16,6 +16,26 @@ The project is built for 0G APAC Track 1 because it focuses on agent orchestrati
 
 ---
 
+## 0G Compute Router
+
+ClawMind uses the 0G Compute Router testnet endpoint for agent inference:
+
+```txt
+https://router-api-testnet.integratenetwork.work/v1/chat/completions
+
+The current demo model is:
+
+qwen/qwen-2.5-7b-instruct
+
+During the demo, each specialized agent call goes through the shared compute abstraction layer:
+
+lib/compute/zero-g-compute.ts
+
+If 0G Compute is unavailable, ClawMind can fall back to local deterministic inference for demo reliability.
+```
+
+---
+
 ## 1-minute Demo Script
 
 Today I am showing ClawMind, a persistent multi-agent cognitive backbone for autonomous Web3 decision-making.
@@ -137,7 +157,7 @@ LLM hallucinated actions
 
 This is the foundation for long-context memory.
 
-The next version will store and retrieve generated memory records directly through 0G Storage.
+ClawMind also persists a generated memory index through 0G Storage, so future runs can reuse previous decision context.
 
 ---
 
@@ -213,7 +233,7 @@ It combines:
 - 0G Storage persistence
 - verifiable decision receipts
 
-The next step is real memory persistence: each analysis will create a reusable memory record that future runs can retrieve and reason over.
+ClawMind now persists both final reports and generated memory indexes through 0G Storage.
 
 ---
 

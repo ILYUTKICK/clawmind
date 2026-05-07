@@ -90,10 +90,11 @@ Agents call a shared `runInference()` function, which supports:
 Environment variables:
 
 ```env
-ZERO_G_COMPUTE_ENDPOINT=https://router-api.0g.ai/v1/chat/completions
-ZERO_G_COMPUTE_API_KEY=your_0g_router_api_key
-ZERO_G_COMPUTE_MODEL=your_0g_model
+ZERO_G_COMPUTE_ENDPOINT=https://router-api-testnet.integratenetwork.work/v1/chat/completions
+ZERO_G_COMPUTE_API_KEY=your_0g_testnet_router_api_key
+ZERO_G_COMPUTE_MODEL=qwen/qwen-2.5-7b-instruct
 ```
+For the current public demo, ClawMind uses the 0G Compute Router testnet endpoint `https://router-api-testnet.integratenetwork.work/v1/chat/completions` with the model `qwen/qwen-2.5-7b-instruct`.
 
 ### 0G Storage
 
@@ -188,8 +189,13 @@ The public Vercel demo supports the full ClawMind workflow:
 
 ```txt
 https://clawmind-puce.vercel.app
-Click Run Analysis.
-ClawMind runs the multi-agent pipeline:
+```
+
+2. Click **Run Analysis**.
+
+3. ClawMind runs the multi-agent pipeline:
+
+```txt
 Memory Retrieval
 → Planner Agent
 → Research Agent
@@ -198,24 +204,39 @@ Memory Retrieval
 → Critic Agent
 → Final Decision Agent
 → Memory Writer
-The final report is generated with:
-score
-recommendation
-risk map
-opportunities
-architecture notes
-next steps
-The Decision Receipt confirms report persistence:
+```
+
+4. The final report is generated with:
+
+- score
+- recommendation
+- risk map
+- opportunities
+- architecture notes
+- next steps
+
+5. The **Decision Receipt** confirms report persistence:
+
+```txt
 Provider: 0G_STORAGE
 Report Hash: 0x...
 Storage URI: 0g://...
-The Memory Index Receipt confirms memory index persistence:
+```
+
+6. The **Memory Index Receipt** confirms memory index persistence:
+
+```txt
 Provider: 0G_STORAGE
 Memory Index URI: 0g://...
-Copy the report Storage URI.
-Paste it into Retrieve Report from 0G Storage.
-Click Retrieve Report.
-The report is retrieved from 0G Storage and displayed in the UI.
+```
+
+7. Copy the report `Storage URI`.
+
+8. Paste it into **Retrieve Report from 0G Storage**.
+
+9. Click **Retrieve Report**.
+
+10. The report is retrieved from 0G Storage and displayed in the UI.
 
 ---
 
@@ -371,9 +392,9 @@ ClawMind can be deployed to Vercel as a Next.js application.
 Required production environment variables:
 
 ```env
-ZERO_G_COMPUTE_ENDPOINT=https://router-api.0g.ai/v1/chat/completions
-ZERO_G_COMPUTE_API_KEY=your_0g_router_api_key
-ZERO_G_COMPUTE_MODEL=your_0g_model
+ZERO_G_COMPUTE_ENDPOINT=https://router-api-testnet.integratenetwork.work/v1/chat/completions
+ZERO_G_COMPUTE_API_KEY=your_0g_testnet_router_api_key
+ZERO_G_COMPUTE_MODEL=qwen/qwen-2.5-7b-instruct
 
 ZERO_G_STORAGE_ENABLED=true
 ZERO_G_STORAGE_PRIVATE_KEY=your_testnet_burner_wallet_private_key
