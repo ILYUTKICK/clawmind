@@ -44,32 +44,30 @@ https://github.com/ILYUTKICK/clawmind
 
 ---
 
+## Quick Links
+
+- Live app: https://clawmind-puce.vercel.app
+- OpenClaw manifest: https://clawmind-puce.vercel.app/api/openclaw/manifest
+- Main orchestrator: `lib/orchestrator/run-analysis.ts`
+- 0G Compute layer: `lib/compute/zero-g-compute.ts`
+- 0G Storage layer: `lib/storage/zero-g-storage.ts`
+- Memory manager: `lib/memory/memory-manager.ts`
+
+---
+
 ## Core Workflow
 
 ```txt
-User Task
-  ↓
-Memory Retrieval
-  ↓
-Planner Agent
-  ↓
-Research Agent
-  ↓
-Risk Agent
-  ↓
-Architect Agent
-  ↓
-Critic Agent
-  ↓
-Final Decision Agent
-  ↓
-Structured MODEL_JSON Report
-  ↓
-0G Storage Decision Receipt
-  ↓
-Memory Writer
-  ↓
-0G Storage Memory Index Receipt
+1. User submits a protocol idea.
+2. ClawMind retrieves relevant memories.
+3. Planner builds the analysis plan.
+4. Researcher extracts facts and assumptions.
+5. Risk Agent identifies key risks.
+6. Architect proposes safer infrastructure.
+7. Critic challenges assumptions.
+8. Final Agent generates a structured report.
+9. Report is persisted to 0G Storage.
+10. Memory Writer persists the updated memory index.
 ```
 
 The output is a structured decision report containing:
@@ -796,18 +794,17 @@ After changing environment variables in Vercel, redeploy the project.
 
 ## Production Validation Checklist
 
-After deployment, verify:
-
-```txt
-/                          opens the ClawMind UI
-/api/openclaw/manifest     returns openclaw.yaml
-Run Analysis               completes the agent pipeline
-Final Report               shows MODEL_JSON in evidence log
-Decision Receipt           shows 0G_STORAGE
-Memory Index Receipt       shows 0G_STORAGE
-Retrieve Report            retrieves a stored report
-Relevant Memories Used     shows deduplicated memory records
-Infrastructure Evidence    shows verified proof points
+| Check | Expected result |
+|---|---|
+| `/` | Opens the ClawMind UI |
+| `/api/openclaw/manifest` | Returns `openclaw.yaml` |
+| Run Analysis | Completes the agent pipeline |
+| Final Report | Shows `MODEL_JSON` in evidence log |
+| Decision Receipt | Shows `0G_STORAGE` |
+| Memory Index Receipt | Shows `0G_STORAGE` |
+| Retrieve Report | Retrieves a stored report |
+| Relevant Memories Used | Shows deduplicated memory records |
+| Infrastructure Evidence | Shows verified proof points |rastructure Evidence    shows verified proof points
 ```
 
 ---
