@@ -36,6 +36,48 @@ function statusClass(status: AgentStep["status"]): string {
 
   return "border-white/10 bg-white/[0.03] text-zinc-400";
 }
+function getPreviewLimit(stepName: AgentStep["name"]): number {
+  if (stepName === "memory_retrieval") {
+    return 520;
+  }
+
+  if (stepName === "memory_writer") {
+    return 420;
+  }
+
+  return 300;
+}
+
+function compactAgentOutput(
+  output: string | undefined,
+  stepName: AgentStep["name"]
+): string {
+  if (!output) {
+    return "Waiting for execution.";
+  }
+
+  const limit = getPreviewLimit(stepName);
+
+  const cleaned = output
+    .replace(/#{1,6}\s*/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (cleaned.length <= limit) {
+    return cleaned;
+  }
+
+  return `${cleaned.slice(0, limit).trim()}...`;
+}
+
+function hasLongOutput(
+  output: string | undefined,
+  stepName: AgentStep["name"]
+): boolean {
+  return Boolean(output && output.length > getPreviewLimit(stepName));
+}
 
 export function AgentPipeline({ steps, isLoading }: AgentPipelineProps) {
   const visibleSteps =
@@ -115,15 +157,20 @@ export function AgentPipeline({ steps, isLoading }: AgentPipelineProps) {
                 <p className="text-sm font-semibold text-zinc-100">
                   {index + 1}. {step.label}
                 </p>
-                {step.output ? (
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-400">
-                    {step.output}
-                  </p>
-                ) : (
-                  <p className="mt-2 text-sm text-zinc-600">
-                    Waiting for execution.
-                  </p>
-                )}
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-400">
+                  {compactAgentOutput(step.output, step.name)}
+                </p>
+
+                {hasLongOutput(step.output, step.name) ? (
+                  <details className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 focus-within:border-cyan-400/30">
+                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-cyan-200 outline-none">
+                      View full agent output
+                    </summary>
+                    <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap text-xs leading-5 text-zinc-400">
+                      {step.output}
+                    </pre>
+                  </details>
+                ) : null}
               </div>
 
               <span

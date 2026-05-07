@@ -1,67 +1,60 @@
-import { StorageReceipt } from "@/lib/types";
+import { AnalysisResult } from "@/lib/types";
 
 type SystemStatusProps = {
-  receipt?: StorageReceipt;
-  hasPersistentMemories: boolean;
+  analysis?: AnalysisResult | null;
 };
+
+type StatusTone = "active" | "ready" | "fallback";
 
 type StatusItem = {
+  eyebrow: string;
   label: string;
-  value: string;
-  active: boolean;
+  badge: string;
+  tone: StatusTone;
 };
 
-function StatusBadge({ item }: { item: StatusItem }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <p className="text-xs uppercase tracking-wide text-zinc-500">
-        {item.label}
-      </p>
+function badgeClass(tone: StatusTone): string {
+  if (tone === "active") {
+    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-200";
+  }
 
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-zinc-100">{item.value}</p>
+  if (tone === "ready") {
+    return "border-cyan-400/30 bg-cyan-400/10 text-cyan-200";
+  }
 
-        <span
-          className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-            item.active
-              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-              : "border-amber-400/30 bg-amber-400/10 text-amber-200"
-          }`}
-        >
-          {item.active ? "Active" : "Fallback"}
-        </span>
-      </div>
-    </div>
-  );
+  return "border-yellow-400/30 bg-yellow-400/10 text-yellow-200";
 }
 
-export function SystemStatus({
-  receipt,
-  hasPersistentMemories,
-}: SystemStatusProps) {
-  const storageIsActive = receipt?.provider === "0G_STORAGE";
-  const retrievalIsEnabled = Boolean(receipt?.storageUri?.startsWith("0g://"));
+export function SystemStatus({ analysis }: SystemStatusProps) {
+  const hasAnalysis = Boolean(analysis);
+  const hasStorageReceipt = analysis?.receipt.provider === "0G_STORAGE";
+  const hasMemoryIndexReceipt =
+    analysis?.memoryIndexReceipt?.provider === "0G_STORAGE";
 
   const items: StatusItem[] = [
     {
-      label: "0G Compute",
-      value: "Agent inference layer",
-      active: true,
+      eyebrow: "0G COMPUTE",
+      label: "Agent inference layer",
+      badge: hasAnalysis ? "Active" : "Ready",
+      tone: hasAnalysis ? "active" : "ready",
     },
     {
-      label: "0G Storage",
-      value: storageIsActive ? "Report persistence" : "Local fallback",
-      active: storageIsActive,
+      eyebrow: "0G STORAGE",
+      label: hasStorageReceipt ? "Report persistence" : "Report persistence",
+      badge: hasStorageReceipt ? "Active" : "Ready",
+      tone: hasStorageReceipt ? "active" : "ready",
     },
     {
-      label: "Memory",
-      value: hasPersistentMemories ? "Persistent context" : "Ready",
-      active: hasPersistentMemories,
+      eyebrow: "MEMORY",
+      label: hasMemoryIndexReceipt ? "0G memory index" : "Memory index",
+      badge: hasMemoryIndexReceipt ? "Active" : "Ready",
+      tone: hasMemoryIndexReceipt ? "active" : "ready",
     },
     {
-      label: "Retrieval",
-      value: retrievalIsEnabled ? "Root hash retrieval" : "Waiting for receipt",
-      active: retrievalIsEnabled,
+      eyebrow: "RETRIEVAL",
+      label: "Root hash retrieval",
+      badge: "Ready",
+      tone: "ready",
     },
   ];
 
@@ -76,7 +69,26 @@ export function SystemStatus({
 
       <div className="grid gap-3 sm:grid-cols-2">
         {items.map((item) => (
-          <StatusBadge key={item.label} item={item} />
+          <div
+            key={item.eyebrow}
+            className="rounded-2xl border border-white/10 bg-black/20 p-4"
+          >
+            <p className="text-xs uppercase tracking-wide text-zinc-500">
+              {item.eyebrow}
+            </p>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-zinc-100">
+                {item.label}
+              </p>
+              <span
+                className={`rounded-full border px-3 py-1 text-xs font-semibold ${badgeClass(
+                  item.tone
+                )}`}
+              >
+                {item.badge}
+              </span>
+            </div>
+          </div>
         ))}
       </div>
     </section>
