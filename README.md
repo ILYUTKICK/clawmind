@@ -2,12 +2,11 @@
 
 **Persistent multi-agent cognitive backbone for autonomous Web3 decision-making, powered by 0G Compute and 0G Storage.**
 
-ClawMind is an agentic infrastructure project built for **0G APAC Track 1: Agentic Infrastructure & OpenClaw Lab**.
-
-It is not a chatbot. It is a modular multi-agent decision engine that plans, analyzes, critiques, stores, and reuses decision context across runs.
-
 **Live Demo:** https://clawmind-puce.vercel.app  
-**GitHub:** https://github.com/ILYUTKICK/clawmind
+**GitHub:** https://github.com/ILYUTKICK/clawmind  
+**Latest Version:** v1.0.0 — Production-grade 0G memory index persistence
+
+ClawMind is an agentic infrastructure project built for **0G APAC Track 1: Agentic Infrastructure & OpenClaw Lab**.
 
 ---
 
@@ -178,6 +177,45 @@ Example recommendation:
 ```txt
 INVESTIGATE_MORE
 ```
+
+---
+
+## Production Demo Flow
+
+The public Vercel demo supports the full ClawMind workflow:
+
+1. Open the live demo:
+
+```txt
+https://clawmind-puce.vercel.app
+Click Run Analysis.
+ClawMind runs the multi-agent pipeline:
+Memory Retrieval
+→ Planner Agent
+→ Research Agent
+→ Risk Agent
+→ Architect Agent
+→ Critic Agent
+→ Final Decision Agent
+→ Memory Writer
+The final report is generated with:
+score
+recommendation
+risk map
+opportunities
+architecture notes
+next steps
+The Decision Receipt confirms report persistence:
+Provider: 0G_STORAGE
+Report Hash: 0x...
+Storage URI: 0g://...
+The Memory Index Receipt confirms memory index persistence:
+Provider: 0G_STORAGE
+Memory Index URI: 0g://...
+Copy the report Storage URI.
+Paste it into Retrieve Report from 0G Storage.
+Click Retrieve Report.
+The report is retrieved from 0G Storage and displayed in the UI.
 
 ---
 
@@ -364,31 +402,25 @@ Production check flow:
 
 - Multi-agent analysis pipeline
 - Agent orchestration layer
+- Specialized Web3 risk-analysis agents
 - 0G Compute-compatible inference abstraction
 - 0G Storage report persistence
+- 0G Storage memory index persistence
+- Report retrieval by 0G root hash
 - Decision receipt with report hash and storage URI
+- Memory Index Receipt with memory index hash and URI
 - Relevant memory panel
+- System Status panel
+- Track 1 Fit panel
 - Structured final report
 - Risk map
 - Architecture recommendations
 - Local fallback mode for stable demos
+- Public Vercel deployment
 
 ---
 
 ## Version History
-
-```txt
-ClawMind v0.4
-├─ UI working
-├─ API routes working
-├─ Agent Orchestrator working
-├─ 0G Compute connected
-├─ 0G Storage connected
-├─ Persistent report upload working
-├─ Decision Receipt working
-└─ Production build passing
-```
-
 
 ### v0.5.0 — MVP with 0G Compute and 0G Storage
 
@@ -426,6 +458,20 @@ ClawMind v0.4
 - Added deployment notes
 - Prepared project for public demo deployment
 
+### v0.9.1 — Live Demo Link
+
+- Added live Vercel deployment link
+- Added GitHub repository link to README
+
+### v1.0.0 — Production-grade 0G Memory Index Persistence
+
+- Added 0G-backed memory index persistence
+- Added Memory Index Receipt
+- Uploaded generated memory index to 0G Storage
+- Verified production flow on Vercel
+
+---
+
 ## Roadmap
 
 ### Completed
@@ -435,22 +481,27 @@ ClawMind v0.4
 - Agent Orchestrator v0.1
 - Compute abstraction layer
 - 0G Compute integration
-- 0G Storage integration
+- 0G Storage report persistence
 - Decision Receipt
 - Real memory persistence
 - 0G report retrieval by root hash
 - System Status panel
 - Track 1 Fit panel
+- Public Vercel deployment
+- 0G memory index persistence
+- Memory Index Receipt
 - Production build
 
 ### Next
 
-- Deploy public demo
-- Add document and URL analysis
-- Store generated memory index directly in 0G Storage
+- Load latest memory index from 0G Storage on startup
+- Add document upload analysis
+- Add URL and GitHub README analysis
+- Add semantic memory ranking with embeddings
 - Add OpenClaw-compatible orchestration metadata
-- Add architecture diagram
-- Prepare final hackathon submission package
+- Add visual architecture diagram
+- Add multi-project memory spaces
+- Prepare final pitch/demo video
 
 ---
 
@@ -466,5 +517,8 @@ They need:
 - verifiable outputs
 - decentralized storage
 - reliable compute infrastructure
+- auditable decision receipts
 
-ClawMind is an early prototype of this infrastructure layer for Web3-native autonomous intelligence.
+ClawMind demonstrates how 0G Compute and 0G Storage can be combined to build a persistent decision layer for Web3-native autonomous intelligence.
+
+The project shows how autonomous systems can move from stateless chatbot interactions toward persistent, verifiable, memory-aware agent infrastructure.
