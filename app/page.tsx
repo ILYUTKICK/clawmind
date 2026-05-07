@@ -51,10 +51,6 @@ export default function HomePage() {
       setIsLoading(false);
     }
   }
-  const hasPersistentMemories =
-    analysis?.relevantMemories.some((memory) =>
-      memory.id.startsWith("mem_generated_")
-    ) || false;
     
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">

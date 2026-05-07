@@ -57,9 +57,9 @@ function scoreMemory(task: string, memory: MemoryRecord): number {
       memory.summary,
       memory.recommendation,
       String(memory.score),
-      memory.storageUri || "",
+      memory.storageUri ?? "",
       ...memory.risks,
-    ].join(" ")
+    ].join(" "),
   );
 
   const keywordScore = keywords.reduce((total, keyword) => {
@@ -77,6 +77,39 @@ function scoreMemory(task: string, memory: MemoryRecord): number {
   return keywordScore + riskBoost + storageBoost;
 }
 
+function normalizeTaskForRelevance(task: string): string {
+  return task
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[^\w\s]/g, "")
+    .trim();
+}
+
+function deduplicateRelevantMemories(memories: MemoryRecord[]): MemoryRecord[] {
+  const seenKeys = new Set<string>();
+  const deduplicated: MemoryRecord[] = [];
+
+  for (const memory of memories) {
+    const normalizedTask = normalizeTaskForRelevance(memory.task);
+    const storageKey =
+      memory.storageUri && memory.storageUri.trim().length > 0
+        ? `storage:${memory.storageUri.trim()}`
+        : "";
+
+    const key =
+      normalizedTask.length > 0
+        ? `task:${normalizedTask}`
+        : storageKey || `id:${memory.id}`;
+
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      deduplicated.push(memory);
+    }
+  }
+
+  return deduplicated;
+}
+
 export async function getAllMemories(): Promise<MemoryRecord[]> {
   const persistentMemories = await readPersistentMemories();
 
@@ -90,12 +123,10 @@ export async function getAllMemories(): Promise<MemoryRecord[]> {
     }
   }
 
-  return allMemories;
+  return deduplicateRelevantMemories(allMemories);
 }
 
-export async function getRelevantMemories(
-  task: string
-): Promise<MemoryRecord[]> {
+export async function getRelevantMemories(task: string): Promise<MemoryRecord[]> {
   const allMemories = await getAllMemories();
 
   const scoredMemories: ScoredMemory[] = allMemories.map((memory) => ({
@@ -103,17 +134,18 @@ export async function getRelevantMemories(
     score: scoreMemory(task, memory),
   }));
 
-  const relevantMemories = scoredMemories
+  const rankedMemories = scoredMemories
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
-    .map((item) => item.memory)
-    .slice(0, 3);
+    .map((item) => item.memory);
+
+  const relevantMemories = deduplicateRelevantMemories(rankedMemories).slice(0, 3);
 
   if (relevantMemories.length > 0) {
     return relevantMemories;
   }
 
-  return allMemories.slice(0, 2);
+  return deduplicateRelevantMemories(allMemories).slice(0, 2);
 }
 
 export function formatMemoryContext(memories: MemoryRecord[]): string {

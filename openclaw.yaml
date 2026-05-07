@@ -1,0 +1,135 @@
+name: clawmind
+version: 1.0.0
+kind: agentic-infrastructure
+track: "Track 1: Agentic Infrastructure & OpenClaw Lab"
+
+description: >
+  Persistent multi-agent cognitive backbone for autonomous Web3 decision-making,
+  powered by 0G Compute for agent inference and 0G Storage for report and memory persistence.
+
+runtime:
+  framework: nextjs
+  language: typescript
+  entrypoints:
+    api:
+      analyze: app/api/analyze/route.ts
+      memory: app/api/memory/route.ts
+      retrieve_report: app/api/report/retrieve/route.ts
+    orchestrator: lib/orchestrator/run-analysis.ts
+
+orchestration:
+  mode: sequential-multi-agent-pipeline
+  state_persistence:
+    primary: 0G_STORAGE
+    fallback: LOCAL_FALLBACK
+  compute:
+    primary: 0G_COMPUTE_ROUTER
+    fallback: LOCAL_DETERMINISTIC_INFERENCE
+  pipeline:
+    - id: memory_retrieval
+      label: Memory Retrieval
+      skill: persistent-memory-retrieval
+      input: user_task
+      output: relevant_memories
+      reads:
+        - local_memory_store
+        - zero_g_memory_index
+    - id: planner
+      label: Planner Agent
+      skill: task-decomposition
+      input:
+        - user_task
+        - relevant_memories
+      output: execution_plan
+    - id: researcher
+      label: Research Agent
+      skill: research-extraction
+      input:
+        - user_task
+        - execution_plan
+      output: research_findings
+    - id: risk_agent
+      label: Risk Agent
+      skill: web3-risk-analysis
+      input:
+        - user_task
+        - research_findings
+        - relevant_memories
+      output: risk_map
+    - id: architect
+      label: Architect Agent
+      skill: architecture-design
+      input:
+        - user_task
+        - research_findings
+        - risk_map
+      output: architecture_recommendations
+    - id: critic
+      label: Critic Agent
+      skill: adversarial-review
+      input:
+        - execution_plan
+        - research_findings
+        - risk_map
+        - architecture_recommendations
+      output: critique
+    - id: final_agent
+      label: Final Decision Agent
+      skill: decision-synthesis
+      input:
+        - user_task
+        - relevant_memories
+        - execution_plan
+        - research_findings
+        - risk_map
+        - architecture_recommendations
+        - critique
+      output: structured_decision_report
+    - id: memory_writer
+      label: Memory Writer
+      skill: persistent-memory-writing
+      input:
+        - structured_decision_report
+        - storage_receipt
+      output:
+        - memory_record
+        - zero_g_memory_index_receipt
+
+skills:
+  - id: persistent-memory-retrieval
+    description: Retrieves prior ClawMind memory records and ranks them against the new task.
+  - id: task-decomposition
+    description: Breaks ambiguous Web3/AI tasks into analysis work items.
+  - id: research-extraction
+    description: Extracts project claims, assumptions, stakeholders, and missing information.
+  - id: web3-risk-analysis
+    description: Identifies custody, oracle, governance, tokenomics, security, and automation risks.
+  - id: architecture-design
+    description: Proposes agent, infra, storage, and execution-control architecture.
+  - id: adversarial-review
+    description: Challenges assumptions and highlights missing safeguards.
+  - id: decision-synthesis
+    description: Converts agent outputs into a structured score, recommendation, risks, opportunities, and next steps.
+  - id: persistent-memory-writing
+    description: Stores distilled analysis memory and persists the memory index to 0G Storage.
+
+artifacts:
+  reports:
+    kind: CLAWMIND_ANALYSIS_REPORT
+    storage: 0G_STORAGE
+    uri_scheme: 0g://
+  memory_index:
+    kind: CLAWMIND_MEMORY_INDEX
+    storage: 0G_STORAGE
+    uri_scheme: 0g://
+
+security:
+  execution_policy:
+    - LLM agents may reason and recommend.
+    - LLM agents must not directly sign transactions.
+    - Human or deterministic policy layer must gate fund movement.
+  wallet_policy:
+    - Use testnet burner wallets only.
+    - Never commit private keys.
+  fallback_policy:
+    - Fallback mode must be clearly labeled as LOCAL_FALLBACK in receipts.

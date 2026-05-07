@@ -51,7 +51,7 @@ function buildReport(task: string, memories: MemoryRecord[]): AnalysisReport {
   return {
     summary:
       "The project has strong potential as a Web3 AI decision system, but it becomes high-risk if autonomous agents can directly influence user funds, protocol execution, or security-sensitive actions.",
-    score: 72,
+    score: 67,
     recommendation: "INVESTIGATE_MORE",
     risks: [
       {

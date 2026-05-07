@@ -48,35 +48,89 @@ function getPreviewLimit(stepName: AgentStep["name"]): number {
   return 300;
 }
 
-function compactAgentOutput(
-  output: string | undefined,
-  stepName: AgentStep["name"]
-): string {
-  if (!output) {
-    return "Waiting for execution.";
-  }
-
-  const limit = getPreviewLimit(stepName);
-
-  const cleaned = output
-    .replace(/#{1,6}\s*/g, "")
-    .replace(/\*\*/g, "")
-    .replace(/```[\s\S]*?```/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  if (cleaned.length <= limit) {
-    return cleaned;
-  }
-
-  return `${cleaned.slice(0, limit).trim()}...`;
-}
-
 function hasLongOutput(
   output: string | undefined,
   stepName: AgentStep["name"]
 ): boolean {
   return Boolean(output && output.length > getPreviewLimit(stepName));
+}
+type FinalAgentPreview = {
+  summary?: string;
+  score?: number;
+  recommendation?: string;
+  risks?: Array<{
+    title?: string;
+    severity?: string;
+    explanation?: string;
+  }>;
+};
+
+function tryParseFinalAgentOutput(output: string): FinalAgentPreview | null {
+  const trimmedOutput = output.trim();
+
+  const firstBrace = trimmedOutput.indexOf("{");
+  const lastBrace = trimmedOutput.lastIndexOf("}");
+
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    return null;
+  }
+
+  try {
+    const jsonCandidate = trimmedOutput
+      .slice(firstBrace, lastBrace + 1)
+      .replace(/,\s*([}\]])/g, "$1");
+
+    const parsed = JSON.parse(jsonCandidate) as unknown;
+
+    if (typeof parsed !== "object" || parsed === null) {
+      return null;
+    }
+
+    return parsed as FinalAgentPreview;
+  } catch {
+    return null;
+  }
+}
+
+function getAgentOutputPreview(stepName: string, output: string): string {
+  if (stepName !== "final_agent") {
+    return output.length > 420 ? `${output.slice(0, 420)}...` : output;
+  }
+
+  const parsed = tryParseFinalAgentOutput(output);
+
+  if (parsed === null) {
+    return output.length > 420 ? `${output.slice(0, 420)}...` : output;
+  }
+
+  const summary =
+    typeof parsed.summary === "string" && parsed.summary.trim().length > 0
+      ? parsed.summary.trim()
+      : "Structured decision report generated.";
+
+  const score = typeof parsed.score === "number" ? `${parsed.score}/100` : "Not provided";
+
+  const recommendation =
+    typeof parsed.recommendation === "string" && parsed.recommendation.trim().length > 0
+      ? parsed.recommendation.trim()
+      : "Not provided";
+
+  const risks = Array.isArray(parsed.risks)
+    ? parsed.risks
+        .map((risk) => risk.title)
+        .filter((title): title is string => typeof title === "string" && title.trim().length > 0)
+        .slice(0, 4)
+        .join(", ")
+    : "Not provided";
+
+  return [
+    "Structured final decision report generated.",
+    "",
+    `Summary: ${summary}`,
+    `Score: ${score}`,
+    `Recommendation: ${recommendation}`,
+    `Key risks: ${risks || "Not provided"}`,
+  ].join("\n");
 }
 
 export function AgentPipeline({ steps, isLoading }: AgentPipelineProps) {
@@ -158,16 +212,16 @@ export function AgentPipeline({ steps, isLoading }: AgentPipelineProps) {
                   {index + 1}. {step.label}
                 </p>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-400">
-                  {compactAgentOutput(step.output, step.name)}
+                  {getAgentOutputPreview(step.name, step.output ?? "")}
                 </p>
 
-                {hasLongOutput(step.output, step.name) ? (
+                {hasLongOutput(step.output ?? "", step.name) ? (
                   <details className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 focus-within:border-cyan-400/30">
                     <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-cyan-200 outline-none">
-                      View full agent output
+                      View Raw Agent Output
                     </summary>
                     <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap text-xs leading-5 text-zinc-400">
-                      {step.output}
+                      {step.output ?? ""}
                     </pre>
                   </details>
                 ) : null}

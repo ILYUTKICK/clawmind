@@ -61,8 +61,8 @@ export async function runInference(input: InferenceInput): Promise<string> {
             content: input.userPrompt,
           },
         ],
-        temperature: 0.2,
-        max_tokens: 700,
+        temperature: input.agentName === "final_agent" ? 0.1 : 0.2,
+        max_tokens: input.agentName === "final_agent" ? 2500 : 1200,
       }),
     });
 
@@ -162,14 +162,65 @@ function runLocalFallbackInference(input: InferenceInput): string {
   }
 
   if (input.agentName === "final_agent") {
-    return [
-      "Final recommendation: INVESTIGATE_MORE",
-      "Score: 72/100",
-      "Summary: The project has strong potential as a persistent multi-agent decision engine, but it becomes high-risk if AI agents directly influence funds, permissions, or security-sensitive workflows.",
-      "Top risks: autonomous execution, custody/permission risk, external data reliability, and memory poisoning.",
-      "Next steps: connect 0G Compute, persist memory in 0G Storage, add semantic memory retrieval, and build a second-run demo that proves memory reuse.",
-    ].join("\n");
-  }
+  return JSON.stringify(
+    {
+      summary:
+        "The project has meaningful potential as an autonomous Web3 AI system, but it requires strict safeguards around execution, custody, external data quality, and persistent memory integrity.",
+      score: 68,
+      recommendation: "INVESTIGATE_MORE",
+      risks: [
+        {
+          title: "Autonomous execution risk",
+          severity: "high",
+          explanation:
+            "The agent may make or recommend actions that affect user funds without enough deterministic safeguards.",
+        },
+        {
+          title: "Custody and permission risk",
+          severity: "critical",
+          explanation:
+            "Any delegated wallet or signing flow must separate LLM reasoning from transaction execution.",
+        },
+        {
+          title: "External data reliability risk",
+          severity: "medium",
+          explanation:
+            "Yield, liquidity, and market data may be stale, incomplete, or manipulated.",
+        },
+        {
+          title: "Memory poisoning risk",
+          severity: "medium",
+          explanation:
+            "Persistent memory can improve reasoning but may also carry forward incorrect or malicious context.",
+        },
+      ],
+      opportunities: [
+        "Persistent memory can reuse previous risk patterns across analyses.",
+        "0G Compute can provide a shared inference layer for each agent step.",
+        "0G Storage can persist reports, receipts, and memory indexes.",
+        "OpenClaw-compatible metadata can make the pipeline easier to inspect.",
+      ],
+      architecture: [
+        "Use a multi-agent pipeline with Planner, Researcher, Risk, Architect, Critic, and Final Decision agents.",
+        "Persist decision reports and memory indexes through 0G Storage.",
+        "Keep signing and execution behind deterministic policy gates.",
+        "Expose the orchestration graph through openclaw.yaml.",
+      ],
+      nextSteps: [
+        "Add stricter execution policy checks.",
+        "Add semantic memory retrieval.",
+        "Add source-grounded document analysis.",
+        "Expose OpenClaw manifest through a read-only API endpoint.",
+      ],
+      evidence: [
+        "Local deterministic final-agent fallback returned strict JSON.",
+        "The report includes risk, architecture, memory, and 0G infrastructure considerations.",
+      ],
+    },
+    null,
+    2,
+  );
+}
 
   return [
     `Local fallback response for ${input.agentName}.`,
