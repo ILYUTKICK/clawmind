@@ -108,8 +108,8 @@ export async function runFinalAgent(input: {
       `User task: ${input.task}`,
       `Relevant memories used: ${input.memories.length}`,
       "Pipeline completed with planner, researcher, risk, architect, critic, and final decision agents.",
-      "Final agent generated a structured decision report through the compute abstraction layer.",
-      `Raw final agent output: ${rawOutput}`,
+      "Final agent generated a structured decision report through the 0G Compute abstraction layer.",
+      "Full final-agent output is available in the expandable Agent Pipeline card.",
     ],
   };
 
