@@ -98,11 +98,11 @@ export async function runFinalAgent(input: {
       "Generate a report hash and storage reference for every analysis result.",
     ],
     nextSteps: [
-      "Replace local fallback inference with real 0G Compute calls.",
-      "Replace mock memory with 0G Storage-backed memory records.",
+      "Load latest memory index from 0G Storage on startup.",
       "Add document upload or URL analysis for whitepapers, GitHub READMEs, and protocol docs.",
-      "Add memory ranking with embeddings or semantic similarity.",
-      "Add a second demo run that visibly reuses previous risk memories.",
+      "Add semantic memory ranking with embeddings.",
+      "Add OpenClaw-compatible orchestration metadata.",
+      "Prepare final pitch/demo video.",
     ],
     evidence: [
       `User task: ${input.task}`,

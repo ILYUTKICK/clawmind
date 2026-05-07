@@ -57,7 +57,7 @@ export function InputForm({ isLoading, onSubmit }: InputFormProps) {
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-zinc-500">
-          MVP mode: mock agents now, 0G Compute and 0G Storage next.
+          Live 0G testnet pipeline with compute, storage, memory, and retrieval.
         </p>
 
         <button
