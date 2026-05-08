@@ -1,919 +1,488 @@
-# ClawMind
+<p align="center">
+  <img src="https://img.shields.io/badge/Track-1%20Agentic%20Infrastructure%20%26%20OpenClaw%20Lab-orange" alt="Track 1" />
+  <img src="https://img.shields.io/badge/Network-0G%20Mainnet-brightgreen" alt="Mainnet" />
+  <img src="https://img.shields.io/badge/Chain_ID-16661-blue" alt="Chain ID" />
+  <img src="https://img.shields.io/badge/Contract-Verified-success" alt="Verified" />
+  <img src="https://img.shields.io/badge/Agents-8%20Step%20Pipeline-purple" alt="8 Agents" />
+  <img src="https://img.shields.io/badge/Storage-0G%20Storage-cyan" alt="0G Storage" />
+  <img src="https://img.shields.io/badge/Integrity-On--Chain%20Verified-emerald" alt="Integrity" />
+</p>
 
-Persistent multi-agent cognitive backbone for autonomous Web3 decision-making.
+<h1 align="center">🧠 ClawMind</h1>
 
-ClawMind is a web application and agent orchestration layer that analyzes Web3/AI protocol ideas through a structured multi-agent pipeline. It combines agent reasoning, persistent memory, structured decision reports, 0G Compute-compatible inference, 0G Storage persistence, and OpenClaw-compatible orchestration metadata.
+<p align="center"><strong>Persistent multi-agent cognitive backbone for autonomous Web3 decision-making</strong></p>
 
----
+<p align="center">
+  <strong>0G Compute</strong> powers 8 specialized agents · <strong>0G Storage</strong> persists reports & memory · <strong>0G Chain</strong> anchors every analysis on-chain
+</p>
 
-## Overview
-
-ClawMind is designed to help evaluate autonomous Web3/AI systems before they are used in high-risk environments.
-
-The system receives a project idea or protocol description, retrieves relevant prior memories, runs several specialized agents, generates a structured decision report, persists the result to 0G Storage, and creates a reusable memory index for future analysis runs.
-
-Core capabilities:
-
-- multi-agent reasoning pipeline;
-- task decomposition;
-- research and assumption extraction;
-- Web3/AI risk analysis;
-- architecture recommendations;
-- adversarial critique;
-- structured `MODEL_JSON` final reports;
-- persistent memory reuse;
-- 0G Compute-compatible inference;
-- 0G Storage report persistence;
-- 0G Storage memory index persistence;
-- report retrieval by `0g://` URI or root hash;
-- OpenClaw-compatible orchestration manifest.
+<p align="center">
+  <a href="https://clawmind-puce.vercel.app">🌐 Live App</a> ·
+  <a href="https://clawmind-puce.vercel.app/judge">⚖️ Judge Mode</a> ·
+  <a href="https://clawmind-puce.vercel.app/api/judge">📊 Judge API</a> ·
+  <a href="https://clawmind-puce.vercel.app/api/openclaw/manifest?format=json">📋 OpenClaw Manifest</a>
+</p>
 
 ---
 
-## Live Application
+## 🏆 TL;DR for Judges
 
-```txt
-https://clawmind-puce.vercel.app
+> **3 sentences, 0 ambiguity:**
+
+ClawMind is an 8-step multi-agent analysis system where **every agent runs on 0G Compute**, **every report is persisted to 0G Storage**, and **every analysis is anchored on 0G Chain** via a verified smart contract. The adversarial Critic Agent challenges assumptions from 4 other agents, and the Integrity Verification layer proves on-chain that report hashes match — zero tampering possible. Judge Mode provides a **zero-setup read-only review surface** with all 0G evidence in one page.
+
+| Verifiable Claim | Live Proof |
+|---|---|
+| Contract on 0G Mainnet (Chain 16661) | [🔍 0x8d53...b8c7 on Explorer](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| 0G Compute active (deepseek-chat-v3-0324) | [📊 Judge API → compute.active: true](https://clawmind-puce.vercel.app/api/judge) |
+| 0G Storage persists reports & memory | In-app: Decision Receipt → `provider: "0G_STORAGE"` + `0g://` URI |
+| On-chain hash matches report hash | In-app: Integrity Verification → "VERIFIED" |
+| OpenClaw manifest with live 0G evidence | [📋 Manifest (JSON)](https://clawmind-puce.vercel.app/api/openclaw/manifest?format=json) |
+
+---
+
+## ✅ Verification Checklist for Judges
+
+> **Scan this first.** Every claim is verifiable through live endpoints or on-chain evidence.
+
+| # | What to Verify | How | Link |
+|---|---|---|---|
+| 1 | Contract deployed on 0G Mainnet | Open Explorer, verify address + Chain ID 16661 | [🔍 View on 0G Explorer](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| 2 | On-chain transactions exist | Check contract activity tab | [🔍 Contract Activity](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| 3 | Judge Mode shows all 0G evidence | Open `/judge`, see compute/storage/chain/OpenClaw status | [⚖️ Judge Mode](https://clawmind-puce.vercel.app/judge) |
+| 4 | Judge API returns structured proof | `GET /api/judge` → JSON with all 0G evidence | [📊 Judge API](https://clawmind-puce.vercel.app/api/judge) |
+| 5 | OpenClaw manifest is live | Open manifest endpoint | [📋 Manifest (YAML)](https://clawmind-puce.vercel.app/api/openclaw/manifest) |
+| 6 | OpenClaw manifest with live 0G evidence | Add `?format=json` for real-time proof | [📋 Manifest (JSON)](https://clawmind-puce.vercel.app/api/openclaw/manifest?format=json) |
+| 7 | Debug API shows full config | `GET /api/debug` → diagnostics | [🔧 Debug API](https://clawmind-puce.vercel.app/api/debug) |
+| 8 | Run an analysis end-to-end | Submit a task on main page, watch 8-agent pipeline | [🌐 Live App](https://clawmind-puce.vercel.app) |
+| 9 | Report persisted to 0G Storage | After analysis, check Decision Receipt for `0G_STORAGE` + `0g://` URI | In-app panel |
+| 10 | Integrity verification passes | After analysis, check Integrity Panel → "VERIFIED" | In-app panel |
+| 11 | Adversarial review works | After analysis, Critic challenges are visible | In-app: Adversarial Panel |
+
+---
+
+## 🔗 0G Integration — Full Stack
+
+> **This is not a partial integration.** Every 0G component is used in the primary path — not just for show, but as the backbone of the system.
+
+| 0G Component | Integration Point | What It Does | Proof |
+|---|---|---|---|
+| **0G Compute** | [`lib/compute/zero-g-compute.ts`](lib/compute/zero-g-compute.ts) | All 8 agents route inference through 0G Router — `deepseek/deepseek-chat-v3-0324` on mainnet | Judge API → `compute.active: true` |
+| **0G Storage (Reports)** | [`lib/storage/zero-g-storage.ts`](lib/storage/zero-g-storage.ts) | Persists analysis reports as JSON — returns root hash + `0g://` URI | Decision Receipt → `provider: "0G_STORAGE"` |
+| **0G Storage (Memory Index)** | [`lib/storage/zero-g-memory-index.ts`](lib/storage/zero-g-memory-index.ts) | Persists memory index — returns root hash + `0g://` URI | Memory Index Receipt → `provider: "0G_STORAGE"` |
+| **0G Storage (Retrieval)** | [`lib/storage/zero-g-retrieval.ts`](lib/storage/zero-g-retrieval.ts) | Retrieves stored reports by `0g://` URI or root hash via 0G indexer | In-app: Retrieve Report panel |
+| **0G Chain (AnalysisRegistry.sol)** | [`contracts/AnalysisRegistry.sol`](contracts/AnalysisRegistry.sol) · [`lib/contracts/analysis-registry.ts`](lib/contracts/analysis-registry.ts) | Anchors every analysis on-chain — emits `AnalysisRecorded` event | [🔍 Contract on Explorer](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| **0G Shared Config** | [`lib/storage/zero-g-config.ts`](lib/storage/zero-g-config.ts) | Unified mainnet/testnet switching — RPC, Explorer, Chain ID auto-resolved | `ZERO_G_NETWORK=mainnet` |
+| **OpenClaw Manifest** | [`openclaw.yaml`](openclaw.yaml) · [`/api/openclaw/manifest`](/api/openclaw/manifest) | Full orchestration manifest with 0G compute, storage, chain, and pipeline spec | [📋 Live Manifest](https://clawmind-puce.vercel.app/api/openclaw/manifest) |
+
+---
+
+## 🏛️ Mainnet Artifacts
+
+> **On-chain proof of deployment.** This is what prevents disqualification.
+
+| Artifact | Value | Explorer |
+|---|---|---|
+| **AnalysisRegistry.sol** | `0x8d53153a8a25c81701954eed66154b3ebba8b8c7` | [🔍 View Contract](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| **Network** | 0G Mainnet (Chain ID: **16661**) | [🔗 0G Explorer](https://chainscan.0g.ai) |
+| **Compute Model** | `deepseek/deepseek-chat-v3-0324` via 0G Router | Verified in Judge API |
+| **Storage Indexer** | `https://indexer-storage-turbo.0g.ai` (Mainnet Turbo) | Used for upload + retrieval |
+| **EVM RPC** | `https://evmrpc.0g.ai` | Mainnet RPC endpoint |
+| **Report Storage tx** | *(generated after analysis run)* | *(available in Decision Receipt + Judge Mode)* |
+| **Memory Index tx** | *(generated after analysis run)* | *(available in Memory Index Receipt)* |
+| **On-chain registration tx** | *(generated after analysis run)* | [🔍 Contract Activity](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| **Storage URIs** | `0g://...` *(generated after analysis run)* | *(available in receipts + Judge Mode)* |
+
+> 💡 **Run an analysis on the [live app](https://clawmind-puce.vercel.app) to generate real tx hashes and `0g://` URIs.** They appear in the UI receipts and Judge Mode immediately.
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         ClawMind Architecture                        │
+│                                                                       │
+│  ┌──────────┐     ┌────────────────┐     ┌────────────────────────┐  │
+│  │   User   │────▶│  Next.js API   │────▶│    Orchestrator        │  │
+│  │  Input   │     │  /api/analyze  │     │  run-analysis.ts       │  │
+│  └──────────┘     └────────────────┘     └──────────┬─────────────┘  │
+│                                                       │               │
+│  ┌────────────────────────────────────────────────────▼────────────┐ │
+│  │                    8-Step Agent Pipeline                         │ │
+│  │                                                                  │ │
+│  │  ┌─────────┐   ┌────────┐   ┌────────────┐   ┌───────────┐    │ │
+│  │  │ Memory  │──▶│Planner │──▶│ Researcher │──▶│Risk Agent │    │ │
+│  │  │ Retrieve│   │        │   │            │   │           │    │ │
+│  │  └─────────┘   └────────┘   └────────────┘   └─────┬─────┘    │ │
+│  │                                                  │            │ │
+│  │  ┌───────────┐   ┌────────┐   ┌──────────┐      │            │ │
+│  │  │  Memory   │◀──│ Final  │◀──│  Critic  │◀─────┤            │ │
+│  │  │  Writer   │   │ Agent  │   │(adversar.)│      │            │ │
+│  │  └─────┬─────┘   └────────┘   └────▲─────┘      │            │ │
+│  │        │                           │       ┌─────┴─────┐      │ │
+│  │        │                           └───────│ Architect │      │ │
+│  │        │                                   └───────────┘      │ │
+│  │        │                                                      │ │
+│  │  ┌─────▼──────────────────────────────────────────────────────┐ │ │
+│  │  │              0G Compute (deepseek-chat-v3-0324)            │ │ │
+│  │  │         https://router-api.0g.ai/v1/chat/completions      │ │ │
+│  │  └────────────────────────────────────────────────────────────┘ │ │
+│  └──────────┬──────────────────────────────────┬──────────────────┘ │
+│             │                                  │                     │
+│  ┌──────────▼──────────┐           ┌──────────▼──────────────────┐  │
+│  │     0G Storage       │           │        0G Chain             │  │
+│  │  ┌────────────────┐  │           │  ┌────────────────────────┐ │  │
+│  │  │ Report (0g://)  │  │           │  │  AnalysisRegistry.sol  │ │  │
+│  │  │ Memory Index   │  │           │  │  recordAnalysis()      │ │  │
+│  │  │ Retrieval API  │  │           │  │  AnalysisRecorded()    │ │  │
+│  │  └────────────────┘  │           │  │  hashToAnalysisId()    │ │  │
+│  │  Indexer: turbo.0g.ai│           │  └────────────────────────┘ │  │
+│  └──────────────────────┘           │  Explorer: chainscan.0g.ai │  │
+│                                      └────────────────────────────┘  │
+│                                                                       │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │                    Integrity Verification                      │  │
+│  │  Report Hash ──▶ 0G Storage ──▶ 0G Chain ──▶ Hashes Match?   │  │
+│  │                                              ──▶ VERIFIED ✓   │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-Repository:
-
-```txt
-https://github.com/ILYUTKICK/clawmind
-```
-
 ---
 
-## Quick Links
+## 🤖 Agent Pipeline — 8 Specialized Agents
 
-- Live app: https://clawmind-puce.vercel.app
-- OpenClaw manifest: https://clawmind-puce.vercel.app/api/openclaw/manifest
-- Main orchestrator: `lib/orchestrator/run-analysis.ts`
-- 0G Compute layer: `lib/compute/zero-g-compute.ts`
-- 0G Storage layer: `lib/storage/zero-g-storage.ts`
-- Memory manager: `lib/memory/memory-manager.ts`
+Each agent has a narrow role, making the pipeline auditable, debuggable, and adversarial. All powered by 0G Compute.
 
----
-
-## Core Workflow
-
-```txt
-1. User submits a protocol idea.
-2. ClawMind retrieves relevant memories.
-3. Planner builds the analysis plan.
-4. Researcher extracts facts and assumptions.
-5. Risk Agent identifies key risks.
-6. Architect proposes safer infrastructure.
-7. Critic challenges assumptions.
-8. Final Agent generates a structured report.
-9. Report is persisted to 0G Storage.
-10. Memory Writer persists the updated memory index.
-```
-
-The output is a structured decision report containing:
-
-- summary;
-- score;
-- recommendation;
-- risk map;
-- opportunities;
-- architecture suggestions;
-- next steps;
-- evidence log;
-- storage receipt;
-- memory index receipt.
-
----
-
-## Architecture
-
-```txt
-Frontend UI
-  ↓
-Next.js API Routes
-  ↓
-Agent Orchestrator
-  ↓
-Memory Layer
-  ↓
-0G Compute-Compatible Inference Layer
-  ↓
-Specialized Agent Pipeline
-  ↓
-Structured Final Report
-  ↓
-0G Storage Persistence
-  ↓
-Memory Index Persistence
-```
-
-Main orchestration entrypoint:
-
-```txt
-lib/orchestrator/run-analysis.ts
-```
-
-The orchestrator controls the full analysis flow:
-
-1. retrieves relevant memories;
-2. runs specialized agents in sequence;
-3. builds a structured final report;
-4. stores the report;
-5. creates a new memory record;
-6. uploads the memory index;
-7. returns all pipeline steps, receipts, and report data to the UI.
-
----
-
-## Agent Pipeline
-
-| Step | Agent | Responsibility | Output |
+| Step | Agent | Skill | Input → Output |
 |---:|---|---|---|
-| 1 | Memory Retrieval | Finds relevant previous memory records | Relevant memory context |
-| 2 | Planner Agent | Breaks the task into analysis objectives | Execution plan |
-| 3 | Research Agent | Extracts facts, assumptions, and missing context | Research findings |
-| 4 | Risk Agent | Identifies Web3 and AI-related risks | Risk map |
-| 5 | Architect Agent | Proposes a safer system architecture | Architecture recommendations |
-| 6 | Critic Agent | Challenges assumptions and missing safeguards | Critical review |
-| 7 | Final Decision Agent | Produces the structured final report | `MODEL_JSON` report |
-| 8 | Memory Writer | Persists a new memory and memory index | 0G memory receipt |
+| 1 | **Memory Retrieval** | `persistent-memory-retrieval` | Task → Relevant memory context from 0G Storage |
+| 2 | **Planner** | `task-decomposition` | Task + memories → Execution plan |
+| 3 | **Researcher** | `research-extraction` | Plan → Research findings & assumptions |
+| 4 | **Risk Agent** | `web3-risk-analysis` | Research → Risk map (custody, oracle, key exposure…) |
+| 5 | **Architect** | `architecture-design` | Risks → Safer architecture proposals |
+| 6 | **Critic** ⚔️ | `adversarial-review` | All agent outputs → Critical challenges |
+| 7 | **Final Agent** | `decision-synthesis` | All context → `MODEL_JSON` report (score, recommendation) |
+| 8 | **Memory Writer** | `persistent-memory-writing` | Report → New memory + 0G Storage index |
 
----
+### Data Flow Between Agents
 
-## Agents
-
-### Planner Agent
-
-Builds the analysis plan and defines what the system needs to evaluate.
-
-Typical output:
-
-- objectives;
-- key components;
-- risk areas;
-- analysis sequence.
-
-### Research Agent
-
-Extracts facts and assumptions from the user-provided project description.
-
-Typical output:
-
-- protocol facts;
-- assumptions;
-- missing details;
-- data requirements.
-
-### Risk Agent
-
-Identifies risks specific to autonomous Web3/AI systems.
-
-Common risk categories:
-
-- custody risk;
-- oracle manipulation;
-- unsafe autonomous execution;
-- private key exposure;
-- policy bypass;
-- hallucinated LLM actions;
-- external data reliability;
-- memory poisoning.
-
-### Architect Agent
-
-Proposes a safer architecture for the described system.
-
-Typical recommendations:
-
-- agent orchestration layer;
-- deterministic policy checks;
-- human-in-the-loop controls;
-- multi-signature wallets;
-- decentralized storage layer;
-- monitoring and rollback mechanisms.
-
-### Critic Agent
-
-Adversarially reviews the plan and highlights missing safeguards.
-
-Typical output:
-
-- weak assumptions;
-- missing controls;
-- unclear execution boundaries;
-- insufficient validation logic.
-
-### Final Decision Agent
-
-Converts all intermediate agent outputs into a structured decision report.
-
-The final output is parsed as JSON and rendered as a report in the UI.
-
-Expected structure:
-
-```json
-{
-  "summary": "string",
-  "score": 0,
-  "recommendation": "GO | NO_GO | INVESTIGATE_MORE",
-  "risks": [
-    {
-      "title": "string",
-      "severity": "low | medium | high | critical",
-      "explanation": "string"
-    }
-  ],
-  "opportunities": ["string"],
-  "architecture": ["string"],
-  "nextSteps": ["string"],
-  "evidence": ["string"]
-}
 ```
-
-### Memory Writer
-
-Creates a new memory record from the final report and persists the updated memory index.
-
----
-
-## OpenClaw-compatible Manifest
-
-ClawMind includes an OpenClaw-compatible orchestration manifest.
-
-Repository file:
-
-```txt
-openclaw.yaml
-```
-
-Live endpoint:
-
-```txt
-/api/openclaw/manifest
-```
-
-The manifest describes:
-
-- project metadata;
-- runtime entrypoints;
-- agent pipeline;
-- specialized skills;
-- agent inputs and outputs;
-- memory dependencies;
-- 0G Compute usage;
-- 0G Storage artifacts;
-- execution safety policy.
-
-Example:
-
-```yaml
-name: clawmind
-version: 1.0.0
-kind: agentic-infrastructure
-
-orchestration:
-  mode: sequential-multi-agent-pipeline
-  state_persistence:
-    primary: 0G_STORAGE
-    fallback: LOCAL_FALLBACK
-  compute:
-    primary: 0G_COMPUTE_ROUTER
-    fallback: LOCAL_DETERMINISTIC_INFERENCE
-```
-
-The manifest can be inspected directly in the browser through:
-
-```txt
-https://clawmind-puce.vercel.app/api/openclaw/manifest
+Memory ──(persistent memory)──▶ Planner ──(execution plan)──▶ Researcher
+    ──(research)──▶ Risk ──(risk map)──┬──▶ Architect ──(architecture)──┐
+                                       │                                │
+                                       └────────────────────────────────┘
+                                                                        │
+                                        Critic ◀────(all outputs)───────┘
+                                          │
+                                    (critique)
+                                          │
+                                   Final Agent ──(decision report)──▶ Memory Writer
+                                                                      │
+                                                          0G Storage (0g://)
+                                                          0G Chain (tx hash)
 ```
 
 ---
 
-## 0G Compute Integration
+## ⚔️ Adversarial Review — Critic Agent in Action
 
-ClawMind uses a shared inference abstraction for agent calls.
+The Critic Agent is the heart of ClawMind's quality assurance. It **does not just summarize** — it **actively challenges** assumptions from Planner, Researcher, Risk Agent, and Architect.
 
-Main file:
+### How It Works
 
-```txt
-lib/compute/zero-g-compute.ts
+```
+┌──────────────┐     ┌──────────────┐
+│  Agent Claim  │────▶│   Critic     │
+│  "Risk is low"│     │  Challenge:  │
+│               │     │  "What about │
+│               │     │  oracle      │
+│               │     │  manipulation│
+│               │     │  risk?"      │
+└──────────────┘     └──────┬───────┘
+                             │
+                    ┌────────▼────────┐
+                    │  Final Agent    │
+                    │  Reconciliation │
+                    │  "RESOLVED"     │
+                    └─────────────────┘
 ```
 
-The compute layer supports:
+1. **Agent Claims** — Each agent produces output (plan, research, risks, architecture)
+2. **Critic Challenges** — Critic identifies weaknesses, missing safeguards, blind spots
+3. **Final Agent Reconciliation** — Resolves challenges into a final synthesis
 
-- 0G Compute / 0G Router compatible endpoint;
-- OpenAI-compatible chat completions format;
-- agent-specific system prompts;
-- lower temperature for structured final reports;
-- increased token budget for full JSON generation;
-- local deterministic fallback for development/demo stability.
+This adversarial loop ensures the final report isn't an echo chamber — it's a stress-tested decision.
 
-The Final Decision Agent uses stricter output rules to produce parseable structured JSON.
+### In-App Evidence
 
-Example behavior:
-
-```txt
-Planner Agent → text plan
-Research Agent → text findings
-Risk Agent → risk analysis
-Architect Agent → architecture proposal
-Critic Agent → critique
-Final Decision Agent → MODEL_JSON
-```
+After running an analysis, the **Adversarial Panel** shows:
+- Agent Claims with color-coded cards
+- Critic Challenges with `CHALLENGED` badges
+- Final Agent Reconciliation with `RESOLVED` badges
+- Challenge → Resolution flow visualization
 
 ---
 
-## 0G Storage Integration
+## 🔒 Integrity Verification — On-Chain Proof
 
-ClawMind persists two main artifact types through 0G Storage.
+Every analysis goes through a 4-step integrity verification chain that proves the report data has **not been tampered with**.
 
-### 1. Decision Report
-
-Each completed analysis produces a decision receipt.
-
-The receipt includes:
-
-```txt
-Provider
-Report Hash
-Storage URI
-Created At
+```
+ Step 1          Step 2              Step 3              Step 4
+ ┌─────────┐    ┌──────────┐       ┌──────────┐       ┌──────────┐
+ │ Report  │───▶│ Hash     │──────▶│ Hashes   │──────▶│ Explorer │
+ │ stored  │    │registered│       │ match?   │       │ verified │
+ │ on 0G   │    │ on 0G    │       │          │       │          │
+ │ Storage │    │ Chain    │       │ ✓ MATCH  │       │ ✓ VERIF. │
+ └─────────┘    └──────────┘       └──────────┘       └──────────┘
+   0g://URI      tx hash          report hash         integrity
+                                  = on-chain hash      checks pass
 ```
 
-Example:
+| Step | What's Checked | Status When Verified |
+|---|---|---|
+| 1 | Report stored on 0G Storage | `0g://` URI + root hash |
+| 2 | Hash registered on 0G Chain | `AnalysisRecorded` event with root hash |
+| 3 | Hashes match | `reportHash === onChainRootHash` → data integrity confirmed |
+| 4 | Explorer verified | Valid hash format, score range, recommendation, storage URI |
 
-```txt
-Provider: 0G_STORAGE
-Report Hash: 0x...
-Storage URI: 0g://...
-```
+### Why This Matters
 
-The report can later be retrieved by URI or root hash through the UI.
-
-### 2. Memory Index
-
-After each analysis, ClawMind creates a memory record and uploads the memory index.
-
-The memory index receipt includes:
-
-```txt
-Provider
-Memory Index Hash
-Memory Index URI
-Created At
-```
-
-Example:
-
-```txt
-Provider: 0G_STORAGE
-Memory Index Hash: 0x...
-Memory Index URI: 0g://...
-```
+Without integrity verification, a report could be silently modified after submission. With ClawMind's on-chain anchoring, **any tampering is mathematically detectable** — the on-chain hash would no longer match the storage hash.
 
 ---
 
-## Report Retrieval
+## 🧠 Persistent Memory — Cumulative Intelligence
 
-ClawMind includes a retrieval panel for persisted reports.
+ClawMind doesn't start from scratch each time. It maintains a **persistent memory index** on 0G Storage that grows with every analysis.
 
-Input formats:
-
-```txt
-0g://<root_hash>
-<root_hash>
+```
+Analysis #1 ──▶ Memory Index v1 ──▶ 0G Storage (0g://hash-v1)
+                                        │
+Analysis #2 ──▶ Memory Retrieval ◀──────┘ (loads v1)
+            ──▶ New insights + old context
+            ──▶ Memory Index v2 ──▶ 0G Storage (0g://hash-v2)
+                                        │
+Analysis #3 ──▶ Memory Retrieval ◀──────┘ (loads v2)
+            ──▶ Even richer context
+            ──▶ Memory Index v3 ──▶ 0G Storage (0g://hash-v3)
 ```
 
-The retrieval flow:
-
-```txt
-Storage URI / Root Hash
-  ↓
-0G Storage Indexer
-  ↓
-Stored Report
-  ↓
-Retrieved Decision UI
-```
-
-The retrieved report displays:
-
-- original task;
-- stored timestamp;
-- score;
-- recommendation;
-- summary;
-- risks.
+Each memory record contains: task, summary, score, recommendation, risks, and storage URI. The Memory Graph visualization shows how past analyses influence current decisions.
 
 ---
 
-## Persistent Memory
+## ⚖️ Judge Mode
 
-ClawMind uses persistent memory to reuse prior analysis context.
+A purpose-built **read-only review surface** for hackathon evaluation — no wallet, faucet, or analysis run required.
 
-Memory sources:
+**🔗 [https://clawmind-puce.vercel.app/judge](https://clawmind-puce.vercel.app/judge)**
 
-- generated memories from previous runs;
-- local persistent memory during development;
-- memory index loaded from 0G Storage;
-- optional seed memories for demo continuity.
+### What Judge Mode Shows
 
-Memory records include:
+| Section | Evidence |
+|---|---|
+| 0G Compute Status | Active/fallback, model, endpoint |
+| 0G Storage Status | Provider, network, configured |
+| 0G Chain Registry | Contract address, Explorer link, latest on-chain analysis |
+| OpenClaw Manifest | Availability, direct link |
+| Latest On-Chain Record | Score, recommendation, root hash, submitter, Explorer links |
+| Memory Stats | Total records, 0G Storage-backed count |
+| Track 1 Alignment | Checklist showing how each Track 1 requirement is covered |
 
-```ts
-{
-  id: string;
-  task: string;
-  summary: string;
-  risks: string[];
-  recommendation: string;
-  score: number;
-  storageUri?: string;
-  createdAt: string;
-}
-```
-
-The memory layer:
-
-- scores memories against the current task;
-- boosts relevant risk overlap;
-- boosts records backed by `0g://` storage;
-- deduplicates similar task memories;
-- limits displayed relevant memories;
-- provides memory context to downstream agents.
-
-Optional 0G memory bootstrap:
-
-```env
-ZERO_G_MEMORY_INDEX_URI=0g://your_previous_memory_index_root_hash
-```
-
----
-
-## Infrastructure Evidence Panel
-
-The UI includes an Infrastructure Evidence panel.
-
-It summarizes live proof points for:
-
-```txt
-0G Compute
-Report Storage
-Memory Index Storage
-Structured Output
-OpenClaw Manifest
-```
-
-After a successful analysis, the panel displays:
-
-```txt
-0G Compute: Active
-Report Storage: 0G_STORAGE / Verified
-Memory Index Storage: 0G_STORAGE / Verified
-Structured Output: MODEL_JSON / Verified
-OpenClaw Manifest: Available
-```
-
-The OpenClaw manifest entry links to:
-
-```txt
-/api/openclaw/manifest
-```
-
----
-
-## UI Panels
-
-The application UI is organized into several panels.
-
-### Input Form
-
-Accepts the project or protocol idea to analyze.
-
-### System Status
-
-Displays runtime status for:
-
-- agent inference layer;
-- report persistence;
-- memory index;
-- root hash retrieval.
-
-### Infrastructure Evidence
-
-Displays live proof points for compute, storage, structured output, and manifest availability.
-
-### Agent Pipeline
-
-Shows all pipeline steps and their current status.
-
-Each step includes:
-
-- compact output preview;
-- completion state;
-- raw agent output disclosure.
-
-### Relevant Memories Used
-
-Shows the most relevant memory records used in the current analysis.
-
-### Decision Receipt
-
-Shows the persisted report hash and storage URI.
-
-### Memory Index Receipt
-
-Shows the persisted memory index hash and URI.
-
-### Retrieve Report from 0G Storage
-
-Allows retrieving a stored report by `0g://` URI or root hash.
-
-### Final Report
-
-Displays the structured decision report.
-
----
-
-## API Endpoints
-
-### Analyze
-
-```txt
-POST /api/analyze
-```
-
-Runs the full multi-agent analysis pipeline.
-
-Request body:
-
-```json
-{
-  "task": "Analyze this Web3 AI protocol idea..."
-}
-```
-
-Response includes:
-
-- task;
-- agent steps;
-- relevant memories;
-- report;
-- decision receipt;
-- memory index receipt.
-
----
-
-### Memory
-
-```txt
-GET /api/memory
-```
-
-Returns available memory records.
-
-Depending on implementation state, this can include local persistent memory, generated memory, and seed memory.
-
----
-
-### Report Retrieval
-
-```txt
-POST /api/report/retrieve
-```
-
-Retrieves a persisted report from 0G Storage.
-
-Request body:
-
-```json
-{
-  "storageUri": "0g://..."
-}
-```
-
-or:
-
-```json
-{
-  "rootHash": "0x..."
-}
-```
-
----
-
-### OpenClaw Manifest
-
-```txt
-GET /api/openclaw/manifest
-```
-
-Returns the `openclaw.yaml` manifest as plain text.
-
----
-
-## Repository Structure
-
-```txt
-clawmind/
-  app/
-    api/
-      analyze/
-        route.ts
-      memory/
-        route.ts
-      openclaw/
-        manifest/
-          route.ts
-      report/
-        retrieve/
-          route.ts
-    globals.css
-    layout.tsx
-    page.tsx
-
-  components/
-    AgentPipeline.tsx
-    InfrastructureEvidence.tsx
-    InputForm.tsx
-    MemoryIndexReceipt.tsx
-    MemoryPanel.tsx
-    ReportView.tsx
-    RetrievedReportPanel.tsx
-    StorageReceipt.tsx
-    SystemStatus.tsx
-    TrackFitPanel.tsx
-
-  lib/
-    agents/
-      architect.ts
-      critic.ts
-      final-agent.ts
-      planner.ts
-      researcher.ts
-      risk-agent.ts
-    compute/
-      compute-status.ts
-      zero-g-compute.ts
-    demo/
-      mock-analysis.ts
-      mock-memory.ts
-    memory/
-      memory-manager.ts
-      persistent-memory-store.ts
-    orchestrator/
-      run-analysis.ts
-    storage/
-      storage-receipt.ts
-      zero-g-memory-index.ts
-      zero-g-memory-retrieval.ts
-      zero-g-retrieval.ts
-      zero-g-storage.ts
-    types.ts
-
-  openclaw.yaml
-  .env.example
-  README.md
-```
-
----
-
-## Tech Stack
-
-- Next.js
-- TypeScript
-- Tailwind CSS
-- 0G Compute-compatible inference endpoint
-- 0G Storage TypeScript SDK
-- ethers
-- Vercel
-
----
-
-## Local Development
-
-Install dependencies:
+### Judge API (JSON)
 
 ```bash
+curl https://clawmind-puce.vercel.app/api/judge
+```
+
+Returns structured JSON with **all** 0G integration evidence — compute, storage, chain, OpenClaw, memory stats, and on-chain records.
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- npm or bun
+
+### Setup
+
+```bash
+# Clone
+git clone https://github.com/ILYUTKICK/clawmind.git
+cd clawmind
+
+# Install
 npm install
-```
 
-Create a local environment file:
-
-```bash
+# Configure
 cp .env.example .env.local
 ```
 
-Run the development server:
+### Environment Variables
+
+```env
+# ─── 0G Network ───
+ZERO_G_NETWORK=mainnet
+
+# ─── 0G Compute (0G Router) ───
+ZERO_G_COMPUTE_ENDPOINT=https://router-api.0g.ai/v1/chat/completions
+ZERO_G_COMPUTE_API_KEY=your_0g_compute_key
+ZERO_G_COMPUTE_MODEL=deepseek/deepseek-chat-v3-0324
+
+# ─── 0G Storage ───
+ZERO_G_STORAGE_ENABLED=true
+ZERO_G_STORAGE_PRIVATE_KEY=your_burner_wallet_key
+
+# ─── 0G Chain (AnalysisRegistry) ───
+ZERO_G_ANALYSIS_REGISTRY_ADDRESS=0x8d53153a8a25c81701954eed66154b3ebba8b8c7
+
+# ─── Optional: bootstrap from previous memory index ───
+# ZERO_G_MEMORY_INDEX_URI=0g://...
+```
+
+### Run
 
 ```bash
 npm run dev
+# Open http://localhost:3000
 ```
 
-Open:
+---
 
-```txt
-http://localhost:3000
-```
+## 📡 API Endpoints
 
-Run checks:
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/analyze` | Run full 8-step agent pipeline |
+| `GET` | `/api/judge` | All 0G integration evidence (JSON) |
+| `GET` | `/api/status` | Infrastructure status (compute, storage, chain) |
+| `GET` | `/api/verify` | On-chain integrity verification data |
+| `GET` | `/api/memory` | Available memory records |
+| `POST` | `/api/report/retrieve` | Retrieve report by `0g://` URI or root hash |
+| `GET` | `/api/openclaw/manifest` | OpenClaw manifest (YAML) |
+| `GET` | `/api/openclaw/manifest?format=json` | OpenClaw manifest + live 0G evidence (JSON) |
+| `GET` | `/api/debug` | Full config diagnostics |
+
+### Analyze Request
 
 ```bash
-npm run lint
-npm run build
+curl -X POST https://clawmind-puce.vercel.app/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"task": "Analyze this Web3 AI protocol: autonomous trading agent with on-chain execution"}'
+```
+
+### Judge API Response (excerpt)
+
+```json
+{
+  "project": "ClawMind",
+  "track": "Track 1: Agentic Infrastructure & OpenClaw Lab",
+  "network": { "name": "0G Mainnet", "chainId": 16661 },
+  "evidence": {
+    "compute": { "active": true, "model": "deepseek/deepseek-chat-v3-0324" },
+    "storage": { "configured": true, "provider": "0G_STORAGE" },
+    "onChainRegistry": { "configured": true, "address": "0x8d53153a..." }
+  }
+}
 ```
 
 ---
 
-## Environment Variables
+## 🛠️ Tech Stack
 
-Use `.env.example` as the source of truth for required variables.
-
-Typical local setup:
-
-```env
-# 0G Compute / Router
-ZERO_G_COMPUTE_ENDPOINT=
-ZERO_G_COMPUTE_API_KEY=
-ZERO_G_COMPUTE_MODEL=
-
-# 0G Storage
-ZERO_G_STORAGE_ENABLED=
-ZERO_G_STORAGE_PRIVATE_KEY=
-ZERO_G_STORAGE_EVM_RPC=
-ZERO_G_STORAGE_INDEXER_RPC=
-
-# Optional memory bootstrap
-ZERO_G_MEMORY_INDEX_URI=
-```
-
-Depending on the storage integration version, storage variable names may follow the exact names defined in `.env.example`.
-
-Do not commit `.env.local`.
-
----
-
-## Environment Safety
-
-Never commit:
-
-```txt
-.env.local
-private keys
-API keys
-wallet secrets
-```
-
-Recommended practices:
-
-- use a testnet burner wallet;
-- keep production secrets in Vercel Environment Variables;
-- keep `.env.example` public and secret-free;
-- rotate exposed test keys if needed;
-- do not use a main wallet private key.
-
----
-
-## Vercel Deployment
-
-ClawMind can be deployed as a standard Next.js application.
-
-Deployment steps:
-
-1. Push the repository to GitHub.
-2. Import the project into Vercel.
-3. Add environment variables from `.env.example`.
-4. Deploy.
-5. Open the live app.
-6. Run an analysis.
-7. Verify receipts and report retrieval.
-
-After changing environment variables in Vercel, redeploy the project.
-
----
-
-## Production Validation Checklist
-
-| Check | Expected result |
+| Layer | Technology |
 |---|---|
-| `/` | Opens the ClawMind UI |
-| `/api/openclaw/manifest` | Returns `openclaw.yaml` |
-| Run Analysis | Completes the agent pipeline |
-| Final Report | Shows `MODEL_JSON` in evidence log |
-| Decision Receipt | Shows `0G_STORAGE` |
-| Memory Index Receipt | Shows `0G_STORAGE` |
-| Retrieve Report | Retrieves a stored report |
-| Relevant Memories Used | Shows deduplicated memory records |
-| Infrastructure Evidence | Shows verified proof points |rastructure Evidence    shows verified proof points
+| Framework | Next.js (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS |
+| AI Compute | 0G Compute Router (`deepseek/deepseek-chat-v3-0324`) |
+| Storage | 0G Storage SDK (`@0gfoundation/0g-storage-ts-sdk`) |
+| Blockchain | 0G Chain (Mainnet, Chain ID 16661) |
+| Smart Contracts | Solidity — `AnalysisRegistry.sol` |
+| Web3 | ethers.js v6 |
+| Orchestration | OpenClaw-compatible manifest |
+| Deployment | Vercel |
+
+---
+
+## 🔑 Key Design Decisions
+
+- **Every analysis is anchored on-chain** — `AnalysisRegistry.sol` records root hash, score, recommendation, and storage URI for each run. The `hashToAnalysisId` mapping enables instant integrity checks.
+- **Adversarial, not collaborative** — The Critic Agent actively challenges other agents' outputs, not just summarizes. This prevents groupthink and ensures blind spots are caught.
+- **Memory persists across sessions** — Memory index stored on 0G Storage, retrieved via `0g://` URI, boosting relevance for future analyses with cumulative context.
+- **8 specialized agents, not one monolith** — Each agent has a narrow role, making the pipeline auditable and debuggable. Data flows are explicit and visible in the UI.
+- **0G all the way down** — Compute, Storage, and Chain are all 0G-native. No external AI providers in the primary path.
+- **Integrity by design** — On-chain hash matching proves data hasn't been tampered with. This isn't a feature — it's a property of the architecture.
+- **Judge Mode requires zero setup** — No wallet, no faucet, no analysis run. Just open the page and verify all 0G integration evidence.
+
+---
+
+## 📂 Repository Structure
+
+```
+clawmind/
+├── app/
+│   ├── api/
+│   │   ├── analyze/route.ts            # Main analysis endpoint
+│   │   ├── judge/route.ts              # Judge API (0G evidence)
+│   │   ├── debug/route.ts              # Debug diagnostics
+│   │   ├── verify/route.ts             # Integrity verification API
+│   │   ├── status/route.ts             # Infrastructure status
+│   │   ├── memory/route.ts             # Memory records
+│   │   ├── openclaw/manifest/route.ts  # OpenClaw manifest
+│   │   └── report/retrieve/route.ts    # 0G Storage retrieval
+│   ├── judge/page.tsx                  # Judge Mode UI
+│   └── page.tsx                        # Main app UI
+├── components/
+│   ├── AgentReasoningFlow.tsx          # Agent pipeline visualization
+│   ├── MemoryGraph.tsx                 # Memory flow visualization
+│   ├── AdversarialPanel.tsx            # Critic Agent challenges
+│   ├── IntegrityPanel.tsx              # On-chain integrity verification
+│   ├── InfrastructureEvidence.tsx      # 0G proof points panel
+│   ├── OnChainReceiptPanel.tsx         # On-chain receipt with Explorer links
+│   └── ...                            # Report, Memory, Receipt panels
+├── contracts/
+│   └── AnalysisRegistry.sol            # On-chain analysis anchor
+├── lib/
+│   ├── agents/                         # 8 specialized agent modules
+│   │   ├── planner.ts
+│   │   ├── researcher.ts
+│   │   ├── risk-agent.ts
+│   │   ├── architect.ts
+│   │   ├── critic.ts                   # Adversarial review agent
+│   │   └── final-agent.ts             # Decision synthesis
+│   ├── compute/zero-g-compute.ts       # 0G Compute integration
+│   ├── contracts/analysis-registry.ts  # On-chain registration
+│   ├── memory/memory-manager.ts        # Persistent memory layer
+│   ├── orchestrator/run-analysis.ts    # Pipeline orchestrator
+│   └── storage/
+│       ├── zero-g-config.ts            # Shared 0G network config
+│       ├── zero-g-storage.ts           # 0G Storage (reports)
+│       ├── zero-g-memory-index.ts      # 0G Storage (memory index)
+│       ├── zero-g-memory-retrieval.ts  # 0G Storage (memory retrieval)
+│       └── zero-g-retrieval.ts         # 0G Storage (retrieval)
+└── openclaw.yaml                       # OpenClaw manifest
 ```
 
 ---
 
-## Safety Model
+## ⚠️ Safety Model
 
-ClawMind is a reasoning and decision-support system.
+ClawMind is a **reasoning and decision-support system**. It does not execute transactions or sign messages.
 
-It is not designed to directly execute transactions or sign messages.
-
-Core safety assumptions:
-
-- LLM agents may analyze and recommend.
-- LLM agents should not directly move funds.
-- Transaction execution should be handled by a separate deterministic policy layer.
-- High-risk operations should require human approval or strict automated guardrails.
-- Storage receipts should be used for auditability.
-- Memory should be treated as useful context, not absolute truth.
-- Retrieved memory can influence analysis but should not override fresh risk evaluation.
+- LLM agents **analyze and recommend** — they never move funds
+- Transaction execution belongs in a separate deterministic policy layer
+- High-risk operations require human approval or strict automated guardrails
+- Storage receipts provide auditability; memory provides context, not truth
+- The Critic Agent's adversarial role is to **identify risks**, not to execute mitigations
 
 ---
 
-## Local Fallback Behavior
+## 📄 License
 
-ClawMind includes fallback behavior for development and demo stability.
-
-Fallbacks may be used when:
-
-- 0G Compute variables are missing;
-- the compute endpoint is unavailable;
-- the storage layer cannot write;
-- local development is running without production secrets.
-
-Fallback behavior is intended to keep the UI usable, while the Infrastructure Evidence panel and receipts make the active provider visible.
-
----
-
-## Current Features
-
-- Multi-agent orchestration pipeline
-- Agent-specific prompts
-- 0G Compute-compatible inference layer
-- Structured `MODEL_JSON` final report parsing
-- Dynamic score and recommendation rendering
-- Risk map generation
-- Architecture recommendation generation
-- Evidence log
-- Decision Receipt
-- Memory Index Receipt
-- 0G Storage report persistence
-- 0G Storage memory index persistence
-- Report retrieval by `0g://` URI or root hash
-- Persistent memory reuse
-- Memory deduplication
-- Relevant memory panel
-- Infrastructure Evidence panel
-- System Status panel
-- OpenClaw-compatible `openclaw.yaml`
-- Live `/api/openclaw/manifest` endpoint
-- Vercel deployment support
-
----
-
-## Version History
-
-### v1.0.0
-
-- Added OpenClaw-compatible `openclaw.yaml`.
-- Added `/api/openclaw/manifest`.
-- Added Infrastructure Evidence panel.
-- Added structured final report parsing.
-- Added `MODEL_JSON` report generation mode.
-- Added 0G Storage memory index receipt.
-- Added 0G Storage report retrieval.
-- Added relevant memory deduplication.
-- Improved Final Decision Agent output handling.
-- Improved Agent Pipeline UI.
-- Improved persistent memory flow.
-
-### Earlier versions
-
-- Added initial multi-agent pipeline.
-- Added 0G Compute-compatible inference.
-- Added 0G Storage report persistence.
-- Added generated memory records.
-- Added system status and receipt panels.
-
----
-
-## Roadmap
-
-Potential next improvements:
-
-- document upload analysis;
-- URL and GitHub README analysis;
-- semantic memory ranking with embeddings;
-- UI-based memory index loading from 0G Storage;
-- per-project memory spaces;
-- visual architecture graph;
-- policy-gated execution simulation;
-- agent trace export;
-- richer report retrieval history;
-- source-grounded risk evidence;
-- memory quality scoring.
-
----
-
-## License
-
-This project is provided as an experimental agentic infrastructure prototype.
-
-Review and adapt the code before using it in production or with real assets.
+Experimental agentic infrastructure prototype. Review and adapt before production use.

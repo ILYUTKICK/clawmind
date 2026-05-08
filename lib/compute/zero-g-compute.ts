@@ -18,7 +18,7 @@ type OpenAICompatibleResponse = {
 function getComputeConfig() {
   const endpoint = process.env.ZERO_G_COMPUTE_ENDPOINT;
   const apiKey = process.env.ZERO_G_COMPUTE_API_KEY;
-  const model = process.env.ZERO_G_COMPUTE_MODEL || "llama-3.3-70b-instruct";
+  const model = process.env.ZERO_G_COMPUTE_MODEL || "deepseek/deepseek-chat-v3-0324";
 
   const isConfigured =
     typeof endpoint === "string" &&

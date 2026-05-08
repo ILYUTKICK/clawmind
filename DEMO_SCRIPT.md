@@ -21,11 +21,14 @@ The project is built for 0G APAC Track 1 because it focuses on agent orchestrati
 ClawMind uses the 0G Compute Router testnet endpoint for agent inference:
 
 ```txt
-https://router-api-testnet.integratenetwork.work/v1/chat/completions
+https://router-api.0g.ai/v1/chat/completions
 
-The current demo model is:
+The current demo model (mainnet):
 
-qwen/qwen-2.5-7b-instruct
+deepseek/deepseek-chat-v3-0324
+
+Other available mainnet models: qwen3.6-plus, zai-org/GLM-5-FP8, zai-org/GLM-5.1-FP8
+(qwen/qwen-2.5-7b-instruct is TESTNET ONLY)
 
 During the demo, each specialized agent call goes through the shared compute abstraction layer:
 

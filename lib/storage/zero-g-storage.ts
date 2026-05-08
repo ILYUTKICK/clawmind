@@ -1,47 +1,10 @@
 import { AnalysisReport, StorageReceipt } from "@/lib/types";
+import { createHashLikeValue, getStorageConfig } from "@/lib/storage/zero-g-config";
 
 type ZeroGUploadResult = {
   rootHash?: string;
   txHash?: string;
 };
-
-function createHashLikeValue(input: string): string {
-  let hash = 0;
-
-  for (let index = 0; index < input.length; index += 1) {
-    const character = input.charCodeAt(index);
-    hash = (hash << 5) - hash + character;
-    hash |= 0;
-  }
-
-  const positiveHash = Math.abs(hash).toString(16).padStart(8, "0");
-
-  return `0x${positiveHash}${positiveHash}${positiveHash}${positiveHash}`;
-}
-
-function getStorageConfig() {
-  const enabled = process.env.ZERO_G_STORAGE_ENABLED === "true";
-  const privateKey = process.env.ZERO_G_STORAGE_PRIVATE_KEY;
-  const evmRpc =
-    process.env.ZERO_G_STORAGE_EVM_RPC || "https://evmrpc-testnet.0g.ai";
-  const indexerRpc =
-    process.env.ZERO_G_STORAGE_INDEXER_RPC ||
-    "https://indexer-storage-testnet-turbo.0g.ai";
-
-  const isConfigured =
-    enabled &&
-    typeof privateKey === "string" &&
-    privateKey.trim().length > 0 &&
-    privateKey !== "your_wallet_private_key_here";
-
-  return {
-    enabled,
-    privateKey,
-    evmRpc,
-    indexerRpc,
-    isConfigured,
-  };
-}
 
 export async function saveReportToZeroGStorage(input: {
   task: string;

@@ -60,6 +60,15 @@ export type StorageReceipt = {
   createdAt: string;
 };
 
+export type OnChainReceipt = {
+  analysisId: number;
+  txHash: string;
+  blockNumber: number;
+  contractAddress: string;
+  explorerTxUrl: string;
+  provider: "0G_CHAIN" | "NOT_CONFIGURED";
+};
+
 export type AnalysisResult = {
   task: string;
   steps: AgentStep[];
@@ -67,4 +76,5 @@ export type AnalysisResult = {
   report: AnalysisReport;
   receipt: StorageReceipt;
   memoryIndexReceipt?: StorageReceipt;
+  onChainReceipt?: OnChainReceipt;
 };

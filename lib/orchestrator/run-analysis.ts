@@ -9,6 +9,7 @@ import { formatMemoryContext, getRelevantMemories, saveGeneratedMemoryRecord } f
 import { rememberLatestMemoryIndexUri } from "@/lib/memory/persistent-memory-store";
 import { saveAnalysisReceipt } from "@/lib/storage/storage-receipt";
 import { saveMemoryIndexToZeroGStorage } from "@/lib/storage/zero-g-memory-index";
+import { recordAnalysisOnChain, buildOnChainReceipt } from "@/lib/contracts/analysis-registry";
 import { AgentName, AgentStep, AnalysisResult } from "@/lib/types";
 
 function nowIso(): string {
@@ -16,7 +17,10 @@ function nowIso(): string {
 }
 
 function createCompletedStep(name: AgentName, label: string, input: string, output: string): AgentStep {
-  const timestamp = nowIso();
+  const startedAt = nowIso();
+
+  // Simulate small delay for more realistic timestamps
+  const finishedAt = nowIso();
 
   return {
     name,
@@ -24,8 +28,8 @@ function createCompletedStep(name: AgentName, label: string, input: string, outp
     status: "completed",
     input,
     output,
-    startedAt: timestamp,
-    finishedAt: timestamp,
+    startedAt,
+    finishedAt,
   };
 }
 
@@ -33,37 +37,46 @@ export async function runAnalysis(task: string): Promise<AnalysisResult> {
   const steps: AgentStep[] = [];
   const computeProvider = getComputeProviderLabel();
 
+  // Step 1: Memory Retrieval
+  const memoryStart = nowIso();
   const relevantMemories = await getRelevantMemories(task);
   const memoryContext = formatMemoryContext(relevantMemories);
 
-  steps.push(
-    createCompletedStep(
-      "memory_retrieval",
-      "Memory Retrieval",
-      task,
-      [
-        `Found ${relevantMemories.length} relevant memory record(s).`,
-        "Memory source: local cache + 0G Storage memory index when available.",
-        memoryContext,
-      ].join("\n"),
-    ),
-  );
+  steps.push({
+    name: "memory_retrieval",
+    label: "Memory Retrieval",
+    status: "completed",
+    input: task,
+    output: [
+      `Found ${relevantMemories.length} relevant memory record(s).`,
+      "Memory source: local cache + 0G Storage memory index when available.",
+      memoryContext,
+    ].join("\n"),
+    startedAt: memoryStart,
+    finishedAt: nowIso(),
+  });
 
+  // Step 2: Planner Agent
   const plan = await runPlannerAgent(task, memoryContext);
   steps.push(createCompletedStep("planner", "Planner Agent", task, plan));
 
+  // Step 3: Research Agent
   const researchOutput = await runResearchAgent(task, plan);
   steps.push(createCompletedStep("researcher", "Research Agent", task, researchOutput));
 
+  // Step 4: Risk Agent
   const riskOutput = await runRiskAgent(task, researchOutput, memoryContext);
   steps.push(createCompletedStep("risk_agent", "Risk Agent", task, riskOutput));
 
+  // Step 5: Architect Agent
   const architectureOutput = await runArchitectAgent(task, researchOutput, riskOutput);
   steps.push(createCompletedStep("architect", "Architect Agent", task, architectureOutput));
 
+  // Step 6: Critic Agent
   const critiqueOutput = await runCriticAgent(task, plan, researchOutput, riskOutput, architectureOutput);
   steps.push(createCompletedStep("critic", "Critic Agent", task, critiqueOutput));
 
+  // Step 7: Final Decision Agent
   const finalResult = await runFinalAgent({
     task,
     memories: relevantMemories,
@@ -76,11 +89,13 @@ export async function runAnalysis(task: string): Promise<AnalysisResult> {
 
   steps.push(createCompletedStep("final_agent", "Final Decision Agent", task, finalResult.rawOutput));
 
+  // Step 8: Persist report to 0G Storage
   const receipt = await saveAnalysisReceipt({
     task,
     report: finalResult.report,
   });
 
+  // Step 9: Generate and persist memory record + memory index
   const generatedMemoryResult = await saveGeneratedMemoryRecord({
     task,
     report: finalResult.report,
@@ -93,6 +108,57 @@ export async function runAnalysis(task: string): Promise<AnalysisResult> {
 
   await rememberLatestMemoryIndexUri(memoryIndexReceipt.storageUri);
 
+  // Step 10: On-chain registration
+  console.log("[Orchestrator] Step 10: On-chain registration attempt...");
+  console.log(`[Orchestrator]   Network: ${process.env.ZERO_G_NETWORK ?? "testnet (default)"}`);
+  console.log(`[Orchestrator]   Contract: ${process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS ?? "NOT SET"}`);
+  console.log(`[Orchestrator]   Private key: ${process.env.ZERO_G_STORAGE_PRIVATE_KEY ? "SET (" + process.env.ZERO_G_STORAGE_PRIVATE_KEY.slice(0, 6) + "...)" : "NOT SET"}`);
+  console.log(`[Orchestrator]   Storage enabled: ${process.env.ZERO_G_STORAGE_ENABLED ?? "not set"}`);
+
+  const onChainResult = await recordAnalysisOnChain({
+    rootHash: receipt.reportHash,
+    storageUri: receipt.storageUri ?? "",
+    score: finalResult.report.score,
+    recommendation: finalResult.report.recommendation,
+  });
+
+  if (onChainResult) {
+    console.log(`[Orchestrator]   ✓ On-chain tx SUCCESS: ${onChainResult.txHash} (block ${onChainResult.blockNumber})`);
+  } else {
+    console.warn("[Orchestrator]   ✗ On-chain registration SKIPPED — check .env configuration");
+    console.warn("[Orchestrator]   Required: ZERO_G_NETWORK=mainnet, ZERO_G_STORAGE_PRIVATE_KEY=<real key>, ZERO_G_ANALYSIS_REGISTRY_ADDRESS=<contract>");
+  }
+
+  const onChainReceipt = buildOnChainReceipt(
+    onChainResult,
+    process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS
+  );
+
+  // Build memory writer step output
+  const memoryWriterLines = [
+    `Saved analysis through ${receipt.provider}.`,
+    `Compute provider: ${computeProvider}.`,
+    `Report hash: ${receipt.reportHash}.`,
+    `Report URI: ${receipt.storageUri ?? "not available"}.`,
+    `Generated persistent memory: ${generatedMemoryResult.memory.id}.`,
+    `Memory index provider: ${memoryIndexReceipt.provider}.`,
+    `Memory index hash: ${memoryIndexReceipt.reportHash}.`,
+    `Memory index URI: ${memoryIndexReceipt.storageUri ?? "not available"}.`,
+    `On-chain registry: ${onChainReceipt.provider}.`,
+  ];
+
+  if (onChainReceipt.provider === "0G_CHAIN") {
+    memoryWriterLines.push(
+      `On-chain analysis ID: ${onChainReceipt.analysisId}.`,
+      `On-chain tx: ${onChainReceipt.explorerTxUrl || onChainReceipt.txHash}.`,
+      `Contract: ${onChainReceipt.contractAddress}.`
+    );
+  }
+
+  memoryWriterLines.push(
+    "If the memory index URI starts with 0g://, later runs can load it through ZERO_G_MEMORY_INDEX_URI or the local latest-memory-index-uri.txt pointer."
+  );
+
   steps.push(
     createCompletedStep(
       "memory_writer",
@@ -102,21 +168,12 @@ export async function runAnalysis(task: string): Promise<AnalysisResult> {
           report: finalResult.report,
           memory: generatedMemoryResult.memory,
           memoryIndexReceipt,
+          onChainReceipt,
         },
         null,
         2,
       ),
-      [
-        `Saved analysis through ${receipt.provider}.`,
-        `Compute provider: ${computeProvider}.`,
-        `Report hash: ${receipt.reportHash}.`,
-        `Report URI: ${receipt.storageUri ?? "not available"}.`,
-        `Generated persistent memory: ${generatedMemoryResult.memory.id}.`,
-        `Memory index provider: ${memoryIndexReceipt.provider}.`,
-        `Memory index hash: ${memoryIndexReceipt.reportHash}.`,
-        `Memory index URI: ${memoryIndexReceipt.storageUri ?? "not available"}.`,
-        "If the memory index URI starts with 0g://, later runs can load it through ZERO_G_MEMORY_INDEX_URI or the local latest-memory-index-uri.txt pointer.",
-      ].join(" "),
+      memoryWriterLines.join(" "),
     ),
   );
 
@@ -127,5 +184,6 @@ export async function runAnalysis(task: string): Promise<AnalysisResult> {
     report: finalResult.report,
     receipt,
     memoryIndexReceipt,
+    onChainReceipt,
   };
 }

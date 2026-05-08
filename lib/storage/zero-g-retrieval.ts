@@ -1,4 +1,5 @@
 import { AnalysisReport } from "@/lib/types";
+import { getNetworkConfig } from "@/lib/storage/zero-g-config";
 
 type StoredClawMindReport = {
   kind: "CLAWMIND_ANALYSIS_REPORT";
@@ -16,13 +17,6 @@ export type RetrievedReportResult = {
   createdAt: string;
   raw: StoredClawMindReport;
 };
-
-function getStorageIndexerRpc(): string {
-  return (
-    process.env.ZERO_G_STORAGE_INDEXER_RPC ||
-    "https://indexer-storage-testnet-turbo.0g.ai"
-  );
-}
 
 export function extractRootHash(input: string): string {
   const trimmedInput = input.trim();
@@ -72,7 +66,7 @@ export async function retrieveReportFromZeroGStorage(
   storageUriOrRootHash: string
 ): Promise<RetrievedReportResult> {
   const rootHash = extractRootHash(storageUriOrRootHash);
-  const indexerRpc = getStorageIndexerRpc();
+  const { indexerRpc } = getNetworkConfig();
 
   const url = `${indexerRpc.replace(/\/$/, "")}/file?root=${encodeURIComponent(
     rootHash

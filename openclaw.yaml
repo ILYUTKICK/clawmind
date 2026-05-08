@@ -94,6 +94,7 @@ orchestration:
       output:
         - memory_record
         - zero_g_memory_index_receipt
+        - on_chain_receipt
 
 skills:
   - id: persistent-memory-retrieval
@@ -129,7 +130,31 @@ security:
     - LLM agents must not directly sign transactions.
     - Human or deterministic policy layer must gate fund movement.
   wallet_policy:
-    - Use testnet burner wallets only.
+    - Use burner wallets with limited 0G token balance for mainnet operations.
     - Never commit private keys.
   fallback_policy:
     - Fallback mode must be clearly labeled as LOCAL_FALLBACK in receipts.
+
+zero_g_integration:
+  compute:
+    provider: 0G_COMPUTE_ROUTER
+    endpoint: https://router-api.0g.ai/v1/chat/completions
+    model: deepseek/deepseek-chat-v3-0324
+    description: All 7 specialized agents route inference through 0G Compute Router on mainnet.
+  storage:
+    provider: 0G_STORAGE
+    indexer_rpc: https://indexer-storage-turbo.0g.ai
+    evm_rpc: https://evmrpc.0g.ai
+    uri_scheme: 0g://
+    description: Reports and memory indexes are persisted to 0G Storage with verifiable receipts.
+  chain:
+    network: mainnet
+    chain_id: 16661
+    contract: AnalysisRegistry.sol
+    contract_address: "0x8d53153a8a25c81701954eed66154b3ebba8b8c7"
+    explorer: https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7
+    description: Each completed analysis is anchored on-chain with root hash, score, recommendation, and storage URI.
+  judge_mode:
+    url: /judge
+    api: /api/judge
+    description: Read-only review surface for hackathon judges. Shows 0G integration evidence, on-chain analysis data, and memory stats.

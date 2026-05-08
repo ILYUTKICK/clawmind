@@ -15,6 +15,11 @@ type RetrievedReportPanelProps = {
   defaultStorageUri?: string;
 };
 
+function shortenHash(value: string, chars = 12): string {
+  if (value.length <= chars * 2 + 3) return value;
+  return `${value.slice(0, chars + 2)}...${value.slice(-chars)}`;
+}
+
 export function RetrievedReportPanel({
   defaultStorageUri,
 }: RetrievedReportPanelProps) {
@@ -84,12 +89,12 @@ export function RetrievedReportPanel({
       </div>
 
       <form onSubmit={handleSubmit} className="grid gap-3">
-        <textarea
+        <input
+          type="text"
           value={storageUriOrRootHash}
           onChange={(event) => setStorageUriOrRootHash(event.target.value)}
-          rows={4}
-          placeholder="0g://0x..."
-          className="w-full resize-none rounded-2xl border border-white/10 bg-black/30 p-4 font-mono text-xs leading-6 text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-cyan-400"
+          placeholder="0g://0x... or root hash"
+          className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-xs text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-cyan-400"
         />
 
         <button
@@ -119,8 +124,11 @@ export function RetrievedReportPanel({
             <p className="text-xs uppercase tracking-wide text-zinc-500">
               Root Hash
             </p>
-            <p className="mt-2 break-all font-mono text-sm text-cyan-200">
-              {retrievedReport.rootHash}
+            <p className="mt-2 font-mono text-sm text-cyan-200">
+              {shortenHash(retrievedReport.rootHash)}
+            </p>
+            <p className="mt-1 text-xs text-zinc-600 break-all">
+              Full: {retrievedReport.rootHash}
             </p>
           </div>
 

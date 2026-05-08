@@ -1,5 +1,6 @@
 import { MemoryRecord } from "@/lib/types";
 import { extractRootHash } from "@/lib/storage/zero-g-retrieval";
+import { getNetworkConfig } from "@/lib/storage/zero-g-config";
 
 type StoredClawMindMemoryIndex = {
   kind: "CLAWMIND_MEMORY_INDEX";
@@ -15,10 +16,6 @@ export type RetrievedMemoryIndexResult = {
   createdAt: string;
   raw: StoredClawMindMemoryIndex;
 };
-
-function getStorageIndexerRpc(): string {
-  return process.env.ZERO_G_STORAGE_INDEXER_RPC || "https://indexer-storage-testnet-turbo.0g.ai";
-}
 
 function isMemoryRecord(value: unknown): value is MemoryRecord {
   if (typeof value !== "object" || value === null) {
@@ -59,7 +56,7 @@ export async function retrieveMemoryIndexFromZeroGStorage(
   storageUriOrRootHash: string,
 ): Promise<RetrievedMemoryIndexResult> {
   const rootHash = extractRootHash(storageUriOrRootHash);
-  const indexerRpc = getStorageIndexerRpc();
+  const { indexerRpc } = getNetworkConfig();
   const url = `${indexerRpc.replace(/\/$/, "")}/file?root=${encodeURIComponent(rootHash)}`;
 
   const response = await fetch(url, {
