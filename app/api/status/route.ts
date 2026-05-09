@@ -37,7 +37,16 @@ type StatusResponse = {
     contractAddress: string | null;
     explorerUrl: string | null;
   };
-  openClawAvailable: boolean;
+  openClaw: {
+    available: boolean;
+    manifestValid: boolean;
+    pipelineSteps: number;
+  };
+  semanticMemory: {
+    embeddingModel: string;
+    embeddingDimensions: number;
+    available: boolean;
+  };
   timestamp: string;
 };
 
@@ -72,7 +81,16 @@ export async function GET(): Promise<NextResponse> {
         contractAddress: infra.onChain.contractAddress,
         explorerUrl: infra.onChain.explorerUrl,
       },
-      openClawAvailable: infra.openClawAvailable,
+      openClaw: {
+        available: infra.openClaw.available,
+        manifestValid: infra.openClaw.manifestValid,
+        pipelineSteps: infra.openClaw.pipelineSteps,
+      },
+      semanticMemory: {
+        embeddingModel: infra.semanticMemory.embeddingModel,
+        embeddingDimensions: infra.semanticMemory.embeddingDimensions,
+        available: infra.semanticMemory.available,
+      },
       timestamp: new Date().toISOString(),
     };
 

@@ -48,6 +48,8 @@ type JudgeOnChainInfo = {
 
 type JudgeOpenClawInfo = {
   available: boolean;
+  manifestValid: boolean;
+  pipelineSteps: number;
   manifestUrl: string;
 };
 
@@ -347,7 +349,9 @@ export async function GET(): Promise<NextResponse> {
 
     // --- OpenClaw evidence ---
     const openClaw: JudgeOpenClawInfo = {
-      available: infra.openClawAvailable,
+      available: infra.openClaw.available,
+      manifestValid: infra.openClaw.manifestValid,
+      pipelineSteps: infra.openClaw.pipelineSteps,
       manifestUrl: "/api/openclaw/manifest",
     };
 

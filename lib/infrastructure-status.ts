@@ -12,6 +12,7 @@ import {
 } from "@/lib/storage/zero-g-config";
 import { getComputeProviderLabel } from "@/lib/compute/compute-status";
 import { isRegistryConfigured } from "@/lib/contracts/analysis-registry";
+import { loadAndValidateManifest } from "@/lib/openclaw/manifest-parser";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -32,6 +33,12 @@ export type InfrastructureStatus = {
     isConfigured: boolean;
     endpoint: string | null;
     model: string | null;
+    /** Number of distinct models in the multi-model ensemble */
+    modelCount: number;
+    /** Whether the multi-model ensemble is active */
+    multiModelEnsemble: boolean;
+    /** Strategy description */
+    strategy: string;
   };
   storage: {
     provider: "0G_STORAGE" | "LOCAL_FALLBACK";
@@ -44,7 +51,17 @@ export type InfrastructureStatus = {
     contractAddress: string | null;
     explorerUrl: string | null;
   };
-  openClawAvailable: boolean;
+  openClaw: {
+    available: boolean;
+    manifestValid: boolean;
+    manifestErrors: string[];
+    pipelineSteps: number;
+  };
+  semanticMemory: {
+    embeddingModel: string;
+    embeddingDimensions: number;
+    available: boolean;
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -54,12 +71,8 @@ export type InfrastructureStatus = {
 /**
  * Returns the unified infrastructure status object.
  *
- * This is the single source of truth for compute, storage, on-chain, and
- * OpenClaw status. All API routes should call this instead of duplicating
- * the logic locally.
- *
- * The function is async only because `openClawAvailable` requires a filesystem
- * check (fs.access). All other computations are synchronous.
+ * This is the single source of truth for compute, storage, on-chain,
+ * OpenClaw, and semantic memory status.
  */
 export async function getInfrastructureStatus(): Promise<InfrastructureStatus> {
   // --- Synchronous computations ---
@@ -69,12 +82,30 @@ export async function getInfrastructureStatus(): Promise<InfrastructureStatus> {
   const registryConfigured = isRegistryConfigured();
   const contractAddress = process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS ?? null;
 
-  // --- Async: check openclaw.yaml existence ---
+  // --- Async: load and validate manifest ---
   let openClawAvailable = false;
+  let manifestValid = false;
+  let manifestErrors: string[] = [];
+  let pipelineSteps = 0;
+  let modelCount = 1;
+  let multiModelEnsemble = false;
+  let strategy = "single_model";
+
   try {
     const manifestPath = path.join(process.cwd(), "openclaw.yaml");
     await fs.access(manifestPath);
     openClawAvailable = true;
+
+    // Parse and validate the manifest
+    const { config, validation } = await loadAndValidateManifest();
+    manifestValid = validation.valid;
+    manifestErrors = validation.errors;
+    pipelineSteps = config.pipeline.length;
+
+    // Extract multi-model info
+    modelCount = config.models.length;
+    multiModelEnsemble = modelCount > 1;
+    strategy = config.strategy;
   } catch {
     openClawAvailable = false;
   }
@@ -92,6 +123,9 @@ export async function getInfrastructureStatus(): Promise<InfrastructureStatus> {
       isConfigured: computeProvider === "0G_COMPUTE",
       endpoint: process.env.ZERO_G_COMPUTE_ENDPOINT ?? null,
       model: process.env.ZERO_G_COMPUTE_MODEL ?? null,
+      modelCount,
+      multiModelEnsemble,
+      strategy,
     },
     storage: {
       provider: storageConfig.isConfigured ? "0G_STORAGE" : "LOCAL_FALLBACK",
@@ -106,6 +140,16 @@ export async function getInfrastructureStatus(): Promise<InfrastructureStatus> {
         ? getExplorerAddressUrl(contractAddress)
         : null,
     },
-    openClawAvailable,
+    openClaw: {
+      available: openClawAvailable,
+      manifestValid,
+      manifestErrors,
+      pipelineSteps,
+    },
+    semanticMemory: {
+      embeddingModel: "all-MiniLM-L6-v2",
+      embeddingDimensions: 384,
+      available: true, // Always available — lazy-loads on first use
+    },
   };
 }

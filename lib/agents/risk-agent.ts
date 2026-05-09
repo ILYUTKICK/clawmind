@@ -3,7 +3,12 @@ import { runInference } from "@/lib/compute/zero-g-compute";
 export async function runRiskAgent(
   task: string,
   researchOutput: string,
-  memoryContext: string
+  memoryContext: string,
+  model?: string,
+  temperature?: number,
+  maxTokens?: number,
+  fallbackModel?: string,
+  fallbackChain?: string[]
 ) {
   return runInference({
     agentName: "risk_agent",
@@ -20,5 +25,10 @@ export async function runRiskAgent(
       "",
       "Return the most important risks with short explanations.",
     ].join("\n"),
+    model,
+    temperature,
+    maxTokens,
+    fallbackModel,
+    fallbackChain,
   });
 }

@@ -1,11 +1,12 @@
 name: clawmind
-version: 1.0.0
+version: 2.0.0
 kind: agentic-infrastructure
 track: "Track 1: Agentic Infrastructure & OpenClaw Lab"
 
 description: >
   Persistent multi-agent cognitive backbone for autonomous Web3 decision-making,
-  powered by 0G Compute for agent inference and 0G Storage for report and memory persistence.
+  powered by 0G Compute for multi-model agent inference and 0G Storage for report
+  and memory persistence with embedding-based semantic retrieval.
 
 runtime:
   framework: nextjs
@@ -19,6 +20,7 @@ runtime:
 
 orchestration:
   mode: sequential-multi-agent-pipeline
+  manifest_driven: true
   state_persistence:
     primary: 0G_STORAGE
     fallback: LOCAL_FALLBACK
@@ -29,53 +31,97 @@ orchestration:
     - id: memory_retrieval
       label: Memory Retrieval
       skill: persistent-memory-retrieval
+      model: local
+      temperature: 0
+      max_tokens: 0
       input: user_task
       output: relevant_memories
+      depends_on: []
       reads:
         - local_memory_store
         - zero_g_memory_index
     - id: planner
       label: Planner Agent
       skill: task-decomposition
+      model: deepseek/deepseek-chat-v3-0324
+      fallback_model: qwen3.6-plus
+      temperature: 0.2
+      max_tokens: 1200
       input:
         - user_task
         - relevant_memories
       output: execution_plan
+      depends_on:
+        - memory_retrieval
     - id: researcher
       label: Research Agent
       skill: research-extraction
+      model: qwen3.6-plus
+      fallback_model: deepseek/deepseek-chat-v3-0324
+      temperature: 0.3
+      max_tokens: 1500
       input:
         - user_task
         - execution_plan
       output: research_findings
+      depends_on:
+        - planner
     - id: risk_agent
       label: Risk Agent
       skill: web3-risk-analysis
+      model: zai-org/GLM-5-FP8
+      fallback_model: deepseek/deepseek-chat-v3-0324
+      temperature: 0.2
+      max_tokens: 1500
       input:
         - user_task
         - research_findings
         - relevant_memories
       output: risk_map
+      depends_on:
+        - researcher
+        - memory_retrieval
     - id: architect
       label: Architect Agent
       skill: architecture-design
+      model: qwen3.6-plus
+      fallback_model: deepseek/deepseek-chat-v3-0324
+      temperature: 0.3
+      max_tokens: 1500
       input:
         - user_task
         - research_findings
         - risk_map
       output: architecture_recommendations
+      depends_on:
+        - researcher
+        - risk_agent
     - id: critic
       label: Critic Agent
       skill: adversarial-review
+      model: zai-org/GLM-5.1-FP8
+      fallback_model: zai-org/GLM-5-FP8
+      temperature: 0.4
+      max_tokens: 1500
       input:
         - execution_plan
         - research_findings
         - risk_map
         - architecture_recommendations
       output: critique
+      depends_on:
+        - planner
+        - researcher
+        - risk_agent
+        - architect
     - id: final_agent
       label: Final Decision Agent
       skill: decision-synthesis
+      model: deepseek/deepseek-chat-v3-0324
+      fallback_model: zai-org/GLM-5-FP8
+      temperature: 0.1
+      max_tokens: 2500
+      structured_output: true
       input:
         - user_task
         - relevant_memories
@@ -85,9 +131,20 @@ orchestration:
         - architecture_recommendations
         - critique
       output: structured_decision_report
+      depends_on:
+        - planner
+        - researcher
+        - risk_agent
+        - architect
+        - critic
     - id: memory_writer
       label: Memory Writer
       skill: persistent-memory-writing
+      model: deepseek/deepseek-chat-v3-0324
+      fallback_model: zai-org/GLM-5-FP8
+      temperature: 0.1
+      max_tokens: 500
+      structured_output: true
       input:
         - structured_decision_report
         - storage_receipt
@@ -95,24 +152,35 @@ orchestration:
         - memory_record
         - zero_g_memory_index_receipt
         - on_chain_receipt
+      depends_on:
+        - final_agent
 
 skills:
   - id: persistent-memory-retrieval
-    description: Retrieves prior ClawMind memory records and ranks them against the new task.
+    description: Retrieves prior ClawMind memory records using embedding-based semantic similarity and ranks them against the new task.
+    embedding_model: all-MiniLM-L6-v2
+    retrieval_method: cosine_similarity_top_k
   - id: task-decomposition
     description: Breaks ambiguous Web3/AI tasks into analysis work items.
+    model_family: deepseek
   - id: research-extraction
     description: Extracts project claims, assumptions, stakeholders, and missing information.
+    model_family: qwen
   - id: web3-risk-analysis
     description: Identifies custody, oracle, governance, tokenomics, security, and automation risks.
+    model_family: glm
   - id: architecture-design
     description: Proposes agent, infra, storage, and execution-control architecture.
+    model_family: qwen
   - id: adversarial-review
     description: Challenges assumptions and highlights missing safeguards.
+    model_family: glm
   - id: decision-synthesis
     description: Converts agent outputs into a structured score, recommendation, risks, opportunities, and next steps.
+    model_family: deepseek
   - id: persistent-memory-writing
-    description: Stores distilled analysis memory and persists the memory index to 0G Storage.
+    description: Stores distilled analysis memory with embeddings and persists the memory index to 0G Storage.
+    model_family: deepseek
 
 artifacts:
   reports:
@@ -123,6 +191,9 @@ artifacts:
     kind: CLAWMIND_MEMORY_INDEX
     storage: 0G_STORAGE
     uri_scheme: 0g://
+    embedding_model: all-MiniLM-L6-v2
+    embedding_dimensions: 384
+    retrieval: cosine_similarity_top_k
 
 security:
   execution_policy:
@@ -139,8 +210,34 @@ zero_g_integration:
   compute:
     provider: 0G_COMPUTE_ROUTER
     endpoint: https://router-api.0g.ai/v1/chat/completions
-    model: deepseek/deepseek-chat-v3-0324
-    description: All 7 specialized agents route inference through 0G Compute Router on mainnet.
+    models:
+      - id: deepseek/deepseek-chat-v3-0324
+        roles: [planner, final_agent, memory_writer]
+        family: deepseek
+        reliability: high
+      - id: qwen3.6-plus
+        roles: [researcher, architect]
+        family: qwen
+        reliability: medium
+      - id: zai-org/GLM-5-FP8
+        roles: [risk_agent]
+        family: glm
+        reliability: high
+      - id: zai-org/GLM-5.1-FP8
+        roles: [critic]
+        family: glm
+        reliability: medium
+    fallback_chain:
+      - deepseek/deepseek-chat-v3-0324
+      - zai-org/GLM-5-FP8
+      - qwen3.6-plus
+    strategy: diversity_of_reasoning
+    strategy_description: >
+      Different model families (deepseek, qwen, GLM) have different training data,
+      RLHF priors, and refusal patterns. Routing critical roles to different families
+      reduces correlated errors and prevents single-vendor blind spots.
+      When a primary model is unavailable, the fallback_chain provides automatic
+      failover while still preferring model diversity.
   storage:
     provider: 0G_STORAGE
     indexer_rpc: https://indexer-storage-turbo.0g.ai

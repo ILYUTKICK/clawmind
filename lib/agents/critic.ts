@@ -5,7 +5,12 @@ export async function runCriticAgent(
   plan: string,
   researchOutput: string,
   riskOutput: string,
-  architectureOutput: string
+  architectureOutput: string,
+  model?: string,
+  temperature?: number,
+  maxTokens?: number,
+  fallbackModel?: string,
+  fallbackChain?: string[]
 ) {
   return runInference({
     agentName: "critic",
@@ -28,5 +33,10 @@ export async function runCriticAgent(
       "",
       "Return critical feedback and improvements.",
     ].join("\n"),
+    model,
+    temperature,
+    maxTokens,
+    fallbackModel,
+    fallbackChain,
   });
 }

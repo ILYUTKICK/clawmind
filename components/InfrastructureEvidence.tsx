@@ -42,14 +42,25 @@ export function InfrastructureEvidence({ analysis, infraStatus }: Infrastructure
   const memoryProvider = analysis?.memoryIndexReceipt?.provider ?? "Waiting for analysis";
   const reportMode = getReportGenerationMode(analysis);
 
-  // Use real infrastructure status when available — NEVER assume configured
+  // Use real infrastructure status when available
   const computeActive = infraStatus?.compute.isConfigured ?? false;
   const storageConfigured = infraStatus?.storage.isConfigured ?? isZeroGStorageProvider(String(reportProvider));
-  // Memory Index uses the same 0G Storage as Report Storage — check infraStatus first
   const memoryConfigured = infraStatus?.storage.isConfigured ?? isZeroGStorageProvider(String(memoryProvider));
   const onChainConfigured = infraStatus?.onChain.configured ?? false;
   const hasContractAddress = Boolean(infraStatus?.onChain.contractAddress);
-  const hasModelJson = reportMode === "MODEL_JSON";
+  const hasModelJson = reportMode === "MODEL_JSON" || reportMode === "MODEL_JSON_REPAIR_RETRY";
+
+  // Multi-model ensemble info
+  const multiModel = infraStatus?.compute.multiModelEnsemble ?? false;
+  const modelCount = infraStatus?.compute.modelCount ?? 1;
+  const strategy = infraStatus?.compute.strategy ?? "single_model";
+
+  // OpenClaw info
+  const manifestValid = infraStatus?.openClaw.manifestValid ?? false;
+  const pipelineSteps = infraStatus?.openClaw.pipelineSteps ?? 0;
+
+  // Semantic memory info
+  const semanticMemory = infraStatus?.semanticMemory.available ?? false;
 
   // Network label
   const networkName = infraStatus?.network.name;
@@ -61,7 +72,7 @@ export function InfrastructureEvidence({ analysis, infraStatus }: Infrastructure
         <div>
           <h2 className="text-lg font-bold text-white">Infrastructure Evidence</h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Live proof points for 0G Compute, 0G Storage, OpenClaw, and structured agent output.
+            Live proof points for 0G Compute, Storage, OpenClaw, and semantic memory.
           </p>
         </div>
 
@@ -75,19 +86,35 @@ export function InfrastructureEvidence({ analysis, infraStatus }: Infrastructure
       </div>
 
       <div className="grid gap-3">
-        {/* 0G Compute */}
+        {/* 0G Compute — Multi-Model Ensemble */}
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <p className="text-xs uppercase tracking-wide text-zinc-500">0G Compute</p>
           <div className="mt-2 flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-white">Agent inference layer</p>
+            <div>
+              <p className="text-sm font-semibold text-white">Agent inference layer</p>
+              {multiModel && (
+                <p className="mt-0.5 text-[10px] font-mono text-cyan-400">
+                  {modelCount} models | {strategy === "diversity_of_reasoning" ? "Diversity of Reasoning" : strategy}
+                </p>
+              )}
+            </div>
             <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
               computeActive
                 ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
                 : "border-yellow-400/30 bg-yellow-400/10 text-yellow-200"
             }`}>
-              {computeActive ? "Active" : "Fallback"}
+              {computeActive ? (multiModel ? "Multi-Model" : "Active") : "Fallback"}
             </span>
           </div>
+          {multiModel && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {["DeepSeek", "Qwen", "GLM-5", "GLM-5.1"].map((model) => (
+                <span key={model} className="rounded border border-white/5 bg-white/[0.03] px-1.5 py-0.5 text-[9px] font-mono text-zinc-400">
+                  {model}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Report Storage */}
@@ -111,11 +138,6 @@ export function InfrastructureEvidence({ analysis, infraStatus }: Infrastructure
           {analysis?.receipt?.reportHash && (
             <p className="mt-2 break-all font-mono text-xs text-cyan-200">
               {shortenHash(analysis.receipt.reportHash)}
-            </p>
-          )}
-          {!storageConfigured && !hasAnalysis && (
-            <p className="mt-1 text-xs text-yellow-300/70">
-              Set ZERO_G_STORAGE_ENABLED=true + ZERO_G_STORAGE_PRIVATE_KEY
             </p>
           )}
         </div>
@@ -143,11 +165,6 @@ export function InfrastructureEvidence({ analysis, infraStatus }: Infrastructure
               {shortenHash(analysis.memoryIndexReceipt.reportHash)}
             </p>
           )}
-          {!memoryConfigured && !hasAnalysis && (
-            <p className="mt-1 text-xs text-yellow-300/70">
-              Set ZERO_G_STORAGE_ENABLED=true + ZERO_G_STORAGE_PRIVATE_KEY
-            </p>
-          )}
         </div>
 
         {/* On-Chain Registry */}
@@ -161,11 +178,6 @@ export function InfrastructureEvidence({ analysis, infraStatus }: Infrastructure
               {isMainnet && (
                 <span className="rounded-full border border-emerald-400/20 bg-emerald-400/5 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300">
                   MAINNET
-                </span>
-              )}
-              {!isMainnet && hasContractAddress && (
-                <span className="rounded-full border border-yellow-400/20 bg-yellow-400/5 px-1.5 py-0.5 text-[10px] font-medium text-yellow-300">
-                  {networkName?.toUpperCase() ?? "UNKNOWN"}
                 </span>
               )}
             </div>
@@ -194,11 +206,6 @@ export function InfrastructureEvidence({ analysis, infraStatus }: Infrastructure
               )}
             </div>
           )}
-          {!onChainConfigured && (
-            <p className="mt-1 text-xs text-red-300/70">
-              Set ZERO_G_STORAGE_PRIVATE_KEY + ZERO_G_NETWORK=mainnet to send on-chain tx
-            </p>
-          )}
         </div>
 
         {/* Structured Output */}
@@ -216,20 +223,54 @@ export function InfrastructureEvidence({ analysis, infraStatus }: Infrastructure
           </div>
         </div>
 
+        {/* Semantic Memory */}
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <p className="text-xs uppercase tracking-wide text-zinc-500">Semantic Memory</p>
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-white">Embedding-based Retrieval</p>
+              <p className="mt-0.5 text-[10px] font-mono text-cyan-400">
+                all-MiniLM-L6-v2 | 384d | cosine similarity
+              </p>
+            </div>
+            <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+              semanticMemory
+                ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+                : "border-yellow-400/30 bg-yellow-400/10 text-yellow-200"
+            }`}>
+              {semanticMemory ? "Active" : "Loading"}
+            </span>
+          </div>
+          {analysis?.relevantMemories?.[0]?.similarityScore !== undefined && (
+            <p className="mt-2 text-xs text-cyan-200">
+              Top match: {(analysis.relevantMemories[0].similarityScore * 100).toFixed(0)}% similarity
+            </p>
+          )}
+        </div>
+
         {/* OpenClaw Manifest */}
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <p className="text-xs uppercase tracking-wide text-zinc-500">OpenClaw Manifest</p>
           <div className="mt-2 flex items-center justify-between gap-3">
-            <a
-              href="/api/openclaw/manifest"
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm font-semibold text-cyan-100 underline decoration-cyan-400/40 underline-offset-4 transition hover:text-cyan-200"
-            >
-              /api/openclaw/manifest
-            </a>
-            <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-semibold text-emerald-200">
-              Available
+            <div>
+              <a
+                href="/api/openclaw/manifest"
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-semibold text-cyan-100 underline decoration-cyan-400/40 underline-offset-4 transition hover:text-cyan-200"
+              >
+                /api/openclaw/manifest
+              </a>
+              <p className="mt-0.5 text-[10px] font-mono text-zinc-500">
+                {pipelineSteps} pipeline steps | manifest-driven
+              </p>
+            </div>
+            <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+              manifestValid
+                ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+                : "border-red-400/30 bg-red-400/10 text-red-200"
+            }`}>
+              {manifestValid ? "Valid" : "Invalid"}
             </span>
           </div>
         </div>

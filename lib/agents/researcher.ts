@@ -1,6 +1,14 @@
 import { runInference } from "@/lib/compute/zero-g-compute";
 
-export async function runResearchAgent(task: string, plan: string) {
+export async function runResearchAgent(
+  task: string,
+  plan: string,
+  model?: string,
+  temperature?: number,
+  maxTokens?: number,
+  fallbackModel?: string,
+  fallbackChain?: string[]
+) {
   return runInference({
     agentName: "researcher",
     systemPrompt:
@@ -13,5 +21,10 @@ export async function runResearchAgent(task: string, plan: string) {
       "",
       "Return extracted facts and assumptions.",
     ].join("\n"),
+    model,
+    temperature,
+    maxTokens,
+    fallbackModel,
+    fallbackChain,
   });
 }

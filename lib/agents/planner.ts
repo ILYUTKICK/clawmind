@@ -1,6 +1,14 @@
 import { runInference } from "@/lib/compute/zero-g-compute";
 
-export async function runPlannerAgent(task: string, memoryContext: string) {
+export async function runPlannerAgent(
+  task: string,
+  memoryContext: string,
+  model?: string,
+  temperature?: number,
+  maxTokens?: number,
+  fallbackModel?: string,
+  fallbackChain?: string[]
+) {
   return runInference({
     agentName: "planner",
     systemPrompt:
@@ -13,5 +21,10 @@ export async function runPlannerAgent(task: string, memoryContext: string) {
       "",
       "Return a concise step-by-step plan.",
     ].join("\n"),
+    model,
+    temperature,
+    maxTokens,
+    fallbackModel,
+    fallbackChain,
   });
 }

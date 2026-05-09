@@ -19,6 +19,10 @@ export type AgentStep = {
   startedAt?: string;
   finishedAt?: string;
   error?: string;
+  /** Which 0G Compute model was used for this step */
+  model?: string;
+  /** Short display name for the model family */
+  modelFamily?: string;
 };
 
 export type RiskSeverity = "low" | "medium" | "high" | "critical";
@@ -51,6 +55,10 @@ export type MemoryRecord = {
   score: number;
   storageUri?: string;
   createdAt: string;
+  /** Embedding vector for semantic similarity */
+  embedding?: number[];
+  /** Cosine similarity score when this memory was retrieved */
+  similarityScore?: number;
 };
 
 export type StorageReceipt = {
@@ -77,4 +85,6 @@ export type AnalysisResult = {
   receipt: StorageReceipt;
   memoryIndexReceipt?: StorageReceipt;
   onChainReceipt?: OnChainReceipt;
+  /** Which models were used for each step */
+  modelRouting?: Record<string, string>;
 };

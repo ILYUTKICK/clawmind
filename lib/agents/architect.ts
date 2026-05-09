@@ -3,7 +3,12 @@ import { runInference } from "@/lib/compute/zero-g-compute";
 export async function runArchitectAgent(
   task: string,
   researchOutput: string,
-  riskOutput: string
+  riskOutput: string,
+  model?: string,
+  temperature?: number,
+  maxTokens?: number,
+  fallbackModel?: string,
+  fallbackChain?: string[]
 ) {
   return runInference({
     agentName: "architect",
@@ -20,5 +25,10 @@ export async function runArchitectAgent(
       "",
       "Return architecture recommendations.",
     ].join("\n"),
+    model,
+    temperature,
+    maxTokens,
+    fallbackModel,
+    fallbackChain,
   });
 }

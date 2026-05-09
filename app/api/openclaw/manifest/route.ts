@@ -5,6 +5,8 @@ import { getNetworkConfig, getExplorerAddressUrl } from "@/lib/storage/zero-g-co
 import { isRegistryConfigured, getLatestAnalysisFromChain } from "@/lib/contracts/analysis-registry";
 import { getComputeProviderLabel } from "@/lib/compute/compute-status";
 import { getStorageConfig } from "@/lib/storage/zero-g-config";
+import { loadAndValidateManifest } from "@/lib/openclaw/manifest-parser";
+import { isEmbeddingReady } from "@/lib/memory/embeddings";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +31,15 @@ export async function GET(request: Request): Promise<NextResponse> {
       });
     }
 
-    // JSON format with live 0G evidence
+    // JSON format with live 0G evidence + manifest validation
     const networkConfig = getNetworkConfig();
     const storageConfig = getStorageConfig();
     const computeProvider = getComputeProviderLabel();
     const registryConfigured = isRegistryConfigured();
     const contractAddress = process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS ?? null;
+
+    // Load parsed manifest
+    const { config, validation } = await loadAndValidateManifest();
 
     let latestOnChain: Record<string, unknown> | null = null;
     if (contractAddress) {
@@ -57,10 +62,32 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
 
     const jsonManifest = {
-      name: "clawmind",
-      version: "1.0.0",
+      name: config?.name ?? "clawmind",
+      version: config?.version ?? "2.0.0",
       kind: "agentic-infrastructure",
       track: "Track 1: Agentic Infrastructure & OpenClaw Lab",
+      manifestValidation: {
+        valid: validation.valid,
+        errors: validation.errors,
+        warnings: validation.warnings,
+        pipelineSteps: config?.pipeline.length ?? 0,
+        modelStrategy: config?.strategy ?? "unknown",
+      },
+      pipeline: config?.pipeline.map((step) => ({
+        id: step.id,
+        label: step.label,
+        skill: step.skill,
+        model: step.model,
+        modelFamily: step.model.includes("deepseek") ? "DeepSeek"
+          : step.model.includes("qwen") ? "Qwen"
+          : step.model.includes("GLM-5.1") ? "GLM-5.1"
+          : step.model.includes("GLM-5") ? "GLM-5"
+          : "Local",
+        temperature: step.temperature,
+        maxTokens: step.maxTokens,
+        dependsOn: step.dependsOn,
+        structuredOutput: step.structuredOutput,
+      })),
       liveEvidence: {
         network: {
           name: networkConfig.network,
@@ -70,6 +97,9 @@ export async function GET(request: Request): Promise<NextResponse> {
         compute: {
           provider: computeProvider,
           isConfigured: computeProvider === "0G_COMPUTE",
+          multiModelEnsemble: (config?.models.length ?? 0) > 1,
+          models: config?.models.map((m) => m.id) ?? [],
+          strategy: config?.strategy ?? "single_model",
         },
         storage: {
           provider: storageConfig.isConfigured ? "0G_STORAGE" : "LOCAL_FALLBACK",
@@ -80,6 +110,12 @@ export async function GET(request: Request): Promise<NextResponse> {
           contractAddress,
           explorerUrl: contractAddress ? getExplorerAddressUrl(contractAddress) : null,
           latestAnalysis: latestOnChain,
+        },
+        semanticMemory: {
+          embeddingModel: "all-MiniLM-L6-v2",
+          embeddingDimensions: 384,
+          embeddingReady: isEmbeddingReady(),
+          retrievalMethod: "cosine_similarity_top_k",
         },
       },
       rawYaml: yaml,

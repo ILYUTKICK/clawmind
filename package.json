@@ -1,6 +1,6 @@
 {
   "name": "clawmind",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,10 +11,13 @@
   },
   "dependencies": {
     "@0gfoundation/0g-storage-ts-sdk": "^1.2.8",
+    "@xenova/transformers": "^2.17.2",
     "ethers": "^6.13.1",
     "next": "16.2.4",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.4",
@@ -24,6 +27,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4.2.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@types/js-yaml": "^4.0.9"
   }
 }

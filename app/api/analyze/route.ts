@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runAnalysis } from "@/lib/orchestrator/run-analysis";
+import { runAnalysis, checkManifestValid } from "@/lib/orchestrator/run-analysis";
 
 export async function POST(request: NextRequest) {
   try {
+    // ── Manifest validation gate ──
+    // If openclaw.yaml is invalid, the pipeline MUST NOT start.
+    const { valid, validation } = await checkManifestValid();
+
+    if (!valid) {
+      return NextResponse.json(
+        {
+          error: "OpenClaw manifest is invalid — pipeline cannot start.",
+          manifestErrors: validation?.errors ?? [],
+          manifestWarnings: validation?.warnings ?? [],
+        },
+        { status: 503 }
+      );
+    }
+
     const body = (await request.json()) as { task?: unknown };
 
     if (typeof body.task !== "string" || body.task.trim().length < 10) {
