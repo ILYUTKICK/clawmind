@@ -1,35 +1,9 @@
 import { AnalysisResult } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Infrastructure status shape (fetched from /api/status)
-// ---------------------------------------------------------------------------
-
-type InfraStatus = {
-  network: {
-    name: "mainnet" | "testnet";
-    chainId: number;
-    explorerBaseUrl: string;
-  };
-  compute: {
-    provider: "0G_COMPUTE" | "LOCAL_FALLBACK";
-    isConfigured: boolean;
-  };
-  storage: {
-    provider: "0G_STORAGE" | "LOCAL_FALLBACK";
-    network: "mainnet" | "testnet";
-    isConfigured: boolean;
-  };
-  onChain: {
-    configured: boolean;
-    contractAddress: string | null;
-    explorerUrl: string | null;
-  };
-  openClawAvailable: boolean;
-};
+import type { InfrastructureStatus } from "@/lib/infrastructure-status";
 
 type InfrastructureEvidenceProps = {
   analysis: AnalysisResult | null;
-  infraStatus?: InfraStatus | null;
+  infraStatus?: InfrastructureStatus | null;
 };
 
 function getReportGenerationMode(analysis: AnalysisResult | null): string {

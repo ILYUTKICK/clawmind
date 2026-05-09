@@ -11,6 +11,7 @@ import { SystemStatus } from "@/components/SystemStatus";
 import { TrackFitPanel } from "@/components/TrackFitPanel";
 import { OnChainReceiptPanel } from "@/components/OnChainReceiptPanel";
 import { AnalysisResult } from "@/lib/types";
+import type { InfrastructureStatus } from "@/lib/infrastructure-status";
 import { MemoryIndexReceipt } from "@/components/MemoryIndexReceipt";
 import { InfrastructureEvidence } from "@/components/InfrastructureEvidence";
 import { MemoryGraph } from "@/components/MemoryGraph";
@@ -19,30 +20,13 @@ import { AdversarialPanel } from "@/components/AdversarialPanel";
 
 // ---------------------------------------------------------------------------
 // Infrastructure status fetched from /api/status
+// Uses the shared InfrastructureStatus type from lib/infrastructure-status
+// as the single source of truth. The API response also includes a `timestamp`
+// and the backward-compat `storage.is_enabled` alias, but the core fields
+// match the shared type.
 // ---------------------------------------------------------------------------
 
-type InfraStatus = {
-  network: {
-    name: "mainnet" | "testnet";
-    chainId: number;
-    explorerBaseUrl: string;
-  };
-  compute: {
-    provider: "0G_COMPUTE" | "LOCAL_FALLBACK";
-    isConfigured: boolean;
-  };
-  storage: {
-    provider: "0G_STORAGE" | "LOCAL_FALLBACK";
-    network: "mainnet" | "testnet";
-    isConfigured: boolean;
-  };
-  onChain: {
-    configured: boolean;
-    contractAddress: string | null;
-    explorerUrl: string | null;
-  };
-  openClawAvailable: boolean;
-};
+type InfraStatus = InfrastructureStatus;
 
 export default function HomePage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);

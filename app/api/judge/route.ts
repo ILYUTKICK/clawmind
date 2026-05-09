@@ -7,17 +7,11 @@
 
 import { NextResponse } from "next/server";
 import {
-  getStorageConfig,
-  getNetworkConfig,
-  getExplorerTxUrl,
-  getExplorerAddressUrl,
-} from "@/lib/storage/zero-g-config";
-import { getComputeProviderLabel } from "@/lib/compute/compute-status";
-import {
-  isRegistryConfigured,
   getLatestAnalysisFromChain,
   ANALYSIS_REGISTRY_ABI,
 } from "@/lib/contracts/analysis-registry";
+import { getInfrastructureStatus } from "@/lib/infrastructure-status";
+import { getExplorerAddressUrl } from "@/lib/storage/zero-g-config";
 import { getAllMemories } from "@/lib/memory/memory-manager";
 import { promises as fs } from "fs";
 import path from "path";
@@ -75,6 +69,20 @@ type JudgeLatestOnChainAnalysis = {
   explorerTxUrl: string;
 };
 
+type JudgeRecentAnalysis = {
+  analysisId: number;
+  rootHash: string;
+  score: number;
+  recommendation: string;
+  timestamp: number;
+  explorerUrl: string;
+};
+
+type JudgeAnalysesPerHour = {
+  hour: string;
+  count: number;
+};
+
 type JudgeMemoryStats = {
   totalRecords: number;
   zeroGBackedCount: number;
@@ -95,6 +103,11 @@ type JudgeData = {
 
   // Latest on-chain analysis (if available)
   latestOnChainAnalysis: JudgeLatestOnChainAnalysis | null;
+
+  // Live dashboard fields
+  analysisCount: number;
+  recentAnalyses: JudgeRecentAnalysis[];
+  analysesPerHour: JudgeAnalysesPerHour[];
 
   // Memory stats
   memory: JudgeMemoryStats;
@@ -149,6 +162,8 @@ async function getAnalysisCountFromChain(): Promise<number> {
 
   try {
     const { ethers } = await import("ethers");
+    // Import getNetworkConfig locally to avoid circular dependency concerns
+    const { getNetworkConfig } = await import("@/lib/storage/zero-g-config");
     const networkConfig = getNetworkConfig();
     const provider = new ethers.JsonRpcProvider(networkConfig.evmRpc);
     const contract = new ethers.Contract(
@@ -164,6 +179,100 @@ async function getAnalysisCountFromChain(): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: get recent analyses from the on-chain registry
+// ---------------------------------------------------------------------------
+
+async function getRecentAnalysesFromChain(
+  count: number
+): Promise<JudgeRecentAnalysis[]> {
+  const contractAddress = process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS;
+
+  if (!contractAddress || !contractAddress.startsWith("0x") || count === 0) {
+    return [];
+  }
+
+  try {
+    const { ethers } = await import("ethers");
+    const { getNetworkConfig } = await import("@/lib/storage/zero-g-config");
+    const networkConfig = getNetworkConfig();
+    const provider = new ethers.JsonRpcProvider(networkConfig.evmRpc);
+    const contract = new ethers.Contract(
+      contractAddress,
+      ANALYSIS_REGISTRY_ABI,
+      provider
+    );
+
+    const limit = Math.min(count, 10);
+    const startId = count; // analysisCount is 1-based; IDs are 0-based to count-1
+    const analyses: JudgeRecentAnalysis[] = [];
+
+    // Read from newest (startId-1) down to oldest
+    for (let i = startId - 1; i >= Math.max(0, startId - limit); i--) {
+      try {
+        const [, rootHash, , score, recommendation, timestamp] =
+          await contract.getAnalysis(i);
+
+        analyses.push({
+          analysisId: i,
+          rootHash,
+          score: Number(score),
+          recommendation,
+          timestamp: Number(timestamp),
+          explorerUrl: getExplorerAddressUrl(contractAddress),
+        });
+      } catch {
+        // Individual analysis read may fail; skip it
+      }
+    }
+
+    return analyses;
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helper: compute analyses-per-hour for the last 24 hours
+// ---------------------------------------------------------------------------
+
+function computeAnalysesPerHour(
+  analyses: JudgeRecentAnalysis[]
+): JudgeAnalysesPerHour[] {
+  const now = Date.now();
+  const hourMs = 60 * 60 * 1000;
+  const buckets: Map<string, number> = new Map();
+
+  // Initialize all 24 buckets
+  for (let i = 23; i >= 0; i--) {
+    const bucketTime = new Date(now - i * hourMs);
+    const hourLabel = `${bucketTime.getUTCHours().toString().padStart(2, "0")}:00`;
+    const key = `${bucketTime.getUTCFullYear()}-${(bucketTime.getUTCMonth() + 1).toString().padStart(2, "0")}-${bucketTime.getUTCDate().toString().padStart(2, "0")}T${hourLabel}`;
+    buckets.set(key, 0);
+  }
+
+  // Count analyses into buckets
+  for (const a of analyses) {
+    const tsMs = a.timestamp * 1000;
+    const age = now - tsMs;
+    if (age < 0 || age > 24 * hourMs) continue;
+
+    const d = new Date(tsMs);
+    const hourLabel = `${d.getUTCHours().toString().padStart(2, "0")}:00`;
+    const key = `${d.getUTCFullYear()}-${(d.getUTCMonth() + 1).toString().padStart(2, "0")}-${d.getUTCDate().toString().padStart(2, "0")}T${hourLabel}`;
+
+    if (buckets.has(key)) {
+      buckets.set(key, (buckets.get(key) ?? 0) + 1);
+    }
+  }
+
+  // Convert to array, using just the hour portion as label
+  return Array.from(buckets.entries()).map(([key, count]) => {
+    const hourPart = key.split("T")[1];
+    return { hour: hourPart ?? key, count };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // GET handler
 // ---------------------------------------------------------------------------
 
@@ -172,39 +281,33 @@ export async function GET(): Promise<NextResponse> {
     // --- Project info from openclaw.yaml ---
     const projectInfo = await getProjectInfo();
 
-    // --- Network configuration ---
-    const networkConfig = getNetworkConfig();
-    const storageConfig = getStorageConfig();
+    // --- Base infrastructure status from shared helper ---
+    const infra = await getInfrastructureStatus();
 
     const network: JudgeNetworkInfo = {
-      name: networkConfig.network,
-      chainId: networkConfig.chainId,
-      explorerBaseUrl: networkConfig.explorerBaseUrl,
+      name: infra.network.name,
+      chainId: infra.network.chainId,
+      explorerBaseUrl: infra.network.explorerBaseUrl,
     };
 
     // --- Compute integration evidence ---
-    const computeProvider = getComputeProviderLabel();
-
     const compute: JudgeComputeInfo = {
-      provider: computeProvider,
-      status: computeProvider === "0G_COMPUTE" ? "active" : "fallback",
+      provider: infra.compute.provider,
+      status: infra.compute.isConfigured ? "active" : "fallback",
     };
 
     // --- Storage integration evidence ---
     const storage: JudgeStorageInfo = {
-      configured: storageConfig.isConfigured,
-      provider: storageConfig.isConfigured ? "0G_STORAGE" : "LOCAL_FALLBACK",
-      network: storageConfig.network,
+      configured: infra.storage.isConfigured,
+      provider: infra.storage.provider,
+      network: infra.storage.network,
     };
 
     // --- On-chain integration evidence ---
-    const registryConfigured = isRegistryConfigured();
-    const contractAddress = process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS ?? null;
-
     let latestOnChainAnalysis: JudgeLatestOnChainAnalysis | null = null;
     let latestAnalysisRaw: Record<string, unknown> | null = null;
 
-    if (contractAddress && contractAddress.startsWith("0x")) {
+    if (infra.onChain.contractAddress && infra.onChain.contractAddress.startsWith("0x")) {
       const analysisFromChain = await getLatestAnalysisFromChain();
 
       if (analysisFromChain) {
@@ -220,9 +323,7 @@ export async function GET(): Promise<NextResponse> {
         // The explorerTxUrl should link to the contract address page so judges
         // can see all registered transactions — individual tx hashes are not
         // available from a read-only getLatestAnalysis call.
-        const contractExplorerUrl = contractAddress
-          ? getExplorerAddressUrl(contractAddress)
-          : null;
+        const contractExplorerUrl = infra.onChain.explorerUrl;
 
         latestOnChainAnalysis = {
           analysisId,
@@ -238,26 +339,15 @@ export async function GET(): Promise<NextResponse> {
     }
 
     const onChain: JudgeOnChainInfo = {
-      configured: registryConfigured,
-      contractAddress,
-      explorerUrl: contractAddress
-        ? getExplorerAddressUrl(contractAddress)
-        : null,
+      configured: infra.onChain.configured,
+      contractAddress: infra.onChain.contractAddress,
+      explorerUrl: infra.onChain.explorerUrl,
       latestAnalysis: latestAnalysisRaw,
     };
 
     // --- OpenClaw evidence ---
-    let openClawAvailable = false;
-    try {
-      const manifestPath = path.join(process.cwd(), "openclaw.yaml");
-      await fs.access(manifestPath);
-      openClawAvailable = true;
-    } catch {
-      openClawAvailable = false;
-    }
-
     const openClaw: JudgeOpenClawInfo = {
-      available: openClawAvailable,
+      available: infra.openClawAvailable,
       manifestUrl: "/api/openclaw/manifest",
     };
 
@@ -282,6 +372,15 @@ export async function GET(): Promise<NextResponse> {
       sampleMemoryIds,
     };
 
+    // --- Analysis count ---
+    const analysisCount = await getAnalysisCountFromChain();
+
+    // --- Recent analyses ---
+    const recentAnalyses = await getRecentAnalysesFromChain(analysisCount);
+
+    // --- Analyses per hour (last 24h) ---
+    const analysesPerHour = computeAnalysesPerHour(recentAnalyses);
+
     // --- Assemble final response ---
     const judgeData: JudgeData = {
       projectName: projectInfo.projectName,
@@ -290,6 +389,9 @@ export async function GET(): Promise<NextResponse> {
       network,
       integration,
       latestOnChainAnalysis,
+      analysisCount,
+      recentAnalyses,
+      analysesPerHour,
       memory,
       generatedAt: new Date().toISOString(),
     };

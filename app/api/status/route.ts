@@ -6,89 +6,73 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import {
-  getStorageConfig,
-  getNetworkConfig,
-  getExplorerAddressUrl,
-} from "@/lib/storage/zero-g-config";
-import { getComputeProviderLabel } from "@/lib/compute/compute-status";
-import { isRegistryConfigured } from "@/lib/contracts/analysis-registry";
+import { getInfrastructureStatus } from "@/lib/infrastructure-status";
 
 export const dynamic = "force-dynamic";
-
-type ComputeStatus = {
-  provider: "0G_COMPUTE" | "LOCAL_FALLBACK";
-  endpoint: string | null;
-  model: string | null;
-  isConfigured: boolean;
-};
-
-type StorageStatus = {
-  provider: "0G_STORAGE" | "LOCAL_FALLBACK";
-  network: "mainnet" | "testnet";
-  isConfigured: boolean;
-  is_enabled: boolean;
-};
-
-type OnChainStatus = {
-  configured: boolean;
-  contractAddress: string | null;
-  explorerUrl: string | null;
-};
 
 type StatusResponse = {
   network: {
     name: "mainnet" | "testnet";
     chainId: number;
     explorerBaseUrl: string;
+    evmRpc: string;
+    indexerRpc: string;
   };
-  compute: ComputeStatus;
-  storage: StorageStatus;
-  onChain: OnChainStatus;
+  compute: {
+    provider: "0G_COMPUTE" | "LOCAL_FALLBACK";
+    isConfigured: boolean;
+    endpoint: string | null;
+    model: string | null;
+  };
+  storage: {
+    provider: "0G_STORAGE" | "LOCAL_FALLBACK";
+    network: "mainnet" | "testnet";
+    isConfigured: boolean;
+    isEnabled: boolean;
+    /** @deprecated Use isEnabled instead — kept for backward compatibility */
+    is_enabled: boolean;
+  };
+  onChain: {
+    configured: boolean;
+    contractAddress: string | null;
+    explorerUrl: string | null;
+  };
   openClawAvailable: boolean;
   timestamp: string;
 };
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const networkConfig = getNetworkConfig();
-    const storageConfig = getStorageConfig();
-    const computeProvider = getComputeProviderLabel();
-    const registryConfigured = isRegistryConfigured();
-    const contractAddress = process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS ?? null;
-
-    const compute: ComputeStatus = {
-      provider: computeProvider,
-      endpoint: process.env.ZERO_G_COMPUTE_ENDPOINT ?? null,
-      model: process.env.ZERO_G_COMPUTE_MODEL ?? null,
-      isConfigured: computeProvider === "0G_COMPUTE",
-    };
-
-    const storage: StorageStatus = {
-      provider: storageConfig.isConfigured ? "0G_STORAGE" : "LOCAL_FALLBACK",
-      network: storageConfig.network,
-      isConfigured: storageConfig.isConfigured,
-      is_enabled: storageConfig.enabled,
-    };
-
-    const onChain: OnChainStatus = {
-      configured: registryConfigured,
-      contractAddress,
-      explorerUrl: contractAddress
-        ? getExplorerAddressUrl(contractAddress)
-        : null,
-    };
+    const infra = await getInfrastructureStatus();
 
     const response: StatusResponse = {
       network: {
-        name: networkConfig.network,
-        chainId: networkConfig.chainId,
-        explorerBaseUrl: networkConfig.explorerBaseUrl,
+        name: infra.network.name,
+        chainId: infra.network.chainId,
+        explorerBaseUrl: infra.network.explorerBaseUrl,
+        evmRpc: infra.network.evmRpc,
+        indexerRpc: infra.network.indexerRpc,
       },
-      compute,
-      storage,
-      onChain,
-      openClawAvailable: true,
+      compute: {
+        provider: infra.compute.provider,
+        isConfigured: infra.compute.isConfigured,
+        endpoint: infra.compute.endpoint,
+        model: infra.compute.model,
+      },
+      storage: {
+        provider: infra.storage.provider,
+        network: infra.storage.network,
+        isConfigured: infra.storage.isConfigured,
+        isEnabled: infra.storage.isEnabled,
+        // Backward-compatible snake_case alias for existing consumers
+        is_enabled: infra.storage.isEnabled,
+      },
+      onChain: {
+        configured: infra.onChain.configured,
+        contractAddress: infra.onChain.contractAddress,
+        explorerUrl: infra.onChain.explorerUrl,
+      },
+      openClawAvailable: infra.openClawAvailable,
       timestamp: new Date().toISOString(),
     };
 
