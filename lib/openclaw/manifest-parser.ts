@@ -4,11 +4,10 @@
 // Parses openclaw.yaml at startup and builds the pipeline configuration.
 // The manifest is the single source of truth for:
 //   - Which agents run (and in what order)
-//   - Which model each agent uses (+ fallback_model)
+//   - Which model each agent uses
 //   - Temperature, max_tokens, and other inference parameters
 //   - Dependencies between agents (depends_on)
 //   - Whether structured output validation is required
-//   - Global fallback_chain for automatic model failover
 // ---------------------------------------------------------------------------
 // If the manifest is invalid, the pipeline MUST NOT start.
 // ---------------------------------------------------------------------------
@@ -26,8 +25,6 @@ export type PipelineStepConfig = {
   label: string;
   skill: string;
   model: string;
-  /** Per-agent fallback model (from openclaw.yaml fallback_model field) */
-  fallbackModel: string;
   temperature: number;
   maxTokens: number;
   dependsOn: string[];
@@ -38,7 +35,6 @@ export type ModelConfig = {
   id: string;
   roles: string[];
   family: string;
-  reliability?: string;
 };
 
 export type ManifestConfig = {
@@ -48,8 +44,6 @@ export type ManifestConfig = {
   models: ModelConfig[];
   strategy: string;
   strategyDescription: string;
-  /** Global fallback chain (from openclaw.yaml fallback_chain field) */
-  fallbackChain: string[];
 };
 
 export type ManifestValidationResult = {
@@ -59,7 +53,7 @@ export type ManifestValidationResult = {
 };
 
 // ---------------------------------------------------------------------------
-// Manifest Loading & Parsing (using js-yaml)
+// Manifest Loading & Parsing
 // ---------------------------------------------------------------------------
 
 let cachedConfig: ManifestConfig | null = null;
@@ -73,9 +67,6 @@ function extractPipelineStep(
     label: String(stepData.label ?? ""),
     skill: String(stepData.skill ?? ""),
     model: String(stepData.model ?? "deepseek/deepseek-chat-v3-0324"),
-    fallbackModel: String(
-      stepData.fallback_model ?? stepData.fallbackModel ?? "deepseek/deepseek-chat-v3-0324"
-    ),
     temperature: Number(stepData.temperature ?? 0.2),
     maxTokens: Number(stepData.max_tokens ?? 1200),
     dependsOn: Array.isArray(stepData.depends_on)
@@ -94,13 +85,11 @@ function extractModelConfig(
       ? modelData.roles.map(String)
       : [],
     family: String(modelData.family ?? "unknown"),
-    reliability: String(modelData.reliability ?? "medium"),
   };
 }
 
 /**
  * Load and parse openclaw.yaml from the project root.
- * Uses js-yaml for reliable parsing of all YAML constructs.
  * Results are cached for the lifetime of the process.
  */
 export async function loadManifest(): Promise<ManifestConfig> {
@@ -110,17 +99,11 @@ export async function loadManifest(): Promise<ManifestConfig> {
   const yamlText = await fs.readFile(manifestPath, "utf-8");
   const parsed = yaml.load(yamlText) as Record<string, unknown>;
 
-  const orchestration = (parsed.orchestration as Record<string, unknown>) ?? {};
-  const pipelineRaw = (orchestration.pipeline as Record<string, unknown>[]) ?? [];
-  const zeroG = (parsed.zero_g_integration as Record<string, unknown>) ?? {};
-  const compute = (zeroG.compute as Record<string, unknown>) ?? {};
-  const modelsRaw = (compute.models as Record<string, unknown>[]) ?? [];
-
-  // Extract global fallback chain
-  const fallbackChainRaw = compute.fallback_chain;
-  const fallbackChain = Array.isArray(fallbackChainRaw)
-    ? fallbackChainRaw.map(String)
-    : ["deepseek/deepseek-chat-v3-0324", "zai-org/GLM-5-FP8", "qwen3.6-plus"];
+  const orchestration = parsed.orchestration as Record<string, unknown> ?? {};
+  const pipelineRaw = orchestration.pipeline as Record<string, unknown>[] ?? [];
+  const zeroG = parsed.zero_g_integration as Record<string, unknown> ?? {};
+  const compute = zeroG.compute as Record<string, unknown> ?? {};
+  const modelsRaw = compute.models as Record<string, unknown>[] ?? [];
 
   const pipeline = pipelineRaw.map(extractPipelineStep);
   const models = modelsRaw.map(extractModelConfig);
@@ -134,7 +117,6 @@ export async function loadManifest(): Promise<ManifestConfig> {
     strategyDescription: String(
       compute.strategy_description ?? "All agents use the same model."
     ),
-    fallbackChain,
   };
 
   return cachedConfig;
@@ -185,11 +167,12 @@ export function validateManifest(config: ManifestConfig): ManifestValidationResu
       errors.push(`Step '${step.id}' has negative max_tokens: ${step.maxTokens}.`);
     }
 
-    // Warn if fallback_model is same as primary (no real fallback)
-    if (step.fallbackModel === step.model) {
-      warnings.push(
-        `Step '${step.id}' fallback_model is same as primary model — no real fallback for this agent.`
-      );
+    // Check depends_on references exist
+    for (const dep of step.dependsOn) {
+      if (!stepIds.has(dep)) {
+        // We need to check against ALL ids, not just previously seen ones
+        // So we do a second pass check below
+      }
     }
   }
 
@@ -251,13 +234,6 @@ export function validateManifest(config: ManifestConfig): ManifestValidationResu
     );
   }
 
-  // Check fallback_chain is not empty
-  if (config.fallbackChain.length === 0) {
-    warnings.push(
-      "Global fallback_chain is empty — no automatic model failover available."
-    );
-  }
-
   return {
     valid: errors.length === 0,
     errors,
@@ -298,7 +274,7 @@ export async function loadAndValidateManifest(): Promise<{
 
   if (validation.valid) {
     console.log(
-      `[OpenClaw] Manifest valid — ${config.pipeline.length} pipeline steps, ${config.models.length} models, strategy: ${config.strategy}, fallback_chain: [${config.fallbackChain.join(", ")}]`
+      `[OpenClaw] Manifest valid — ${config.pipeline.length} pipeline steps, ${config.models.length} models, strategy: ${config.strategy}`
     );
   }
 

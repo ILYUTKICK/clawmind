@@ -1,0 +1,40 @@
+name: Foundry Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run Forge build
+        run: forge build --sizes
+        id: build
+
+      - name: Run Forge tests
+        run: forge test -vvv
+        id: test
+
+      - name: Run Forge coverage
+        run: forge coverage --report summary
+        id: coverage

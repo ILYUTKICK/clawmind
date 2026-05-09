@@ -47,7 +47,7 @@ export default function HomePage() {
       });
   }, []);
 
-  async function runAnalysis(task: string) {
+  async function runAnalysis(task: string, forceFresh: boolean = false) {
     setIsLoading(true);
     setRequestError(null);
 
@@ -57,7 +57,7 @@ export default function HomePage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ task }),
+        body: JSON.stringify({ task, forceFresh }),
       });
 
       const data = (await response.json()) as AnalysisResult & {
@@ -240,7 +240,12 @@ export default function HomePage() {
           {/* RIGHT COLUMN — Results & Evidence */}
           <div className="flex flex-col gap-8">
             <TrackFitPanel />
-            <ReportView report={analysis?.report} />
+            <ReportView
+              report={analysis?.report}
+              task={analysis?.task}
+              receipt={analysis?.receipt}
+              onChainReceipt={analysis?.onChainReceipt}
+            />
             {analysis ? (
               <>
                 <AdversarialPanel steps={analysis.steps} report={analysis.report} />

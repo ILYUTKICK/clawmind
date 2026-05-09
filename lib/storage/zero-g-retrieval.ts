@@ -1,5 +1,3 @@
-import fs from "fs";
-import path from "path";
 import { AnalysisReport } from "@/lib/types";
 import { getNetworkConfig } from "@/lib/storage/zero-g-config";
 
@@ -70,20 +68,22 @@ export async function retrieveReportFromZeroGStorage(
   const rootHash = extractRootHash(storageUriOrRootHash);
   const { indexerRpc } = getNetworkConfig();
 
-  // ─── ФИКС: используем SDK download вместо HTTP fetch ───
-  const { Indexer } = await import("@0gfoundation/0g-storage-ts-sdk");
-  const indexer = new Indexer(indexerRpc);
+  const url = `${indexerRpc.replace(/\/$/, "")}/file?root=${encodeURIComponent(
+    rootHash
+  )}`;
 
-  const tmpFile = path.join("/tmp", `report-${Date.now()}.json`);
+  const response = await fetch(url, {
+    method: "GET",
+    cache: "no-store",
+  });
 
-  const err = await indexer.download(rootHash, tmpFile, false);
-  if (err !== null) {
-    throw new Error(`0G Storage download failed: ${String(err)}`);
+  if (!response.ok) {
+    throw new Error(
+      `0G Storage retrieval failed with status ${response.status}: ${response.statusText}`
+    );
   }
 
-  const text = fs.readFileSync(tmpFile, "utf-8");
-  fs.unlinkSync(tmpFile);
-  // ────────────────────────────────────────────────────────
+  const text = await response.text();
 
   let parsed: unknown;
 
@@ -94,7 +94,9 @@ export async function retrieveReportFromZeroGStorage(
   }
 
   if (!isStoredClawMindReport(parsed)) {
-    throw new Error("Retrieved file is not a valid ClawMind analysis report.");
+    throw new Error(
+      "Retrieved file is not a valid ClawMind analysis report."
+    );
   }
 
   return {

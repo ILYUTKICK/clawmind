@@ -208,6 +208,15 @@ export async function getRelevantMemories(task: string): Promise<MemoryRecord[]>
   return deduplicateRelevantMemories(allMemories).slice(0, 2);
 }
 
+/**
+ * Get only the IDs of relevant memories (for cache key building).
+ * Lightweight — does not generate embeddings, just returns current memory IDs.
+ */
+export async function getRelevantMemoryIds(task: string): Promise<string[]> {
+  const memories = await getRelevantMemories(task);
+  return memories.map((m) => m.id);
+}
+
 export function formatMemoryContext(memories: MemoryRecord[]): string {
   if (memories.length === 0) {
     return "No relevant memories found.";

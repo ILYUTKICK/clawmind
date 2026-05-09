@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
-// ClawMind — Final Agent Wrapper with Model Routing + Fallback
+// ClawMind — Final Agent Wrapper with Model Routing
 // ---------------------------------------------------------------------------
 // Wraps the original final-agent logic but accepts model/temperature/maxTokens
-// from the manifest pipeline config, plus fallback model and fallback chain.
+// from the manifest pipeline config.
 // ---------------------------------------------------------------------------
 
 import { AnalysisReport, MemoryRecord, Recommendation, RiskItem, RiskSeverity } from "@/lib/types";
@@ -19,8 +19,6 @@ type FinalAgentInput = {
   model?: string;
   temperature?: number;
   maxTokens?: number;
-  fallbackModel?: string;
-  fallbackChain?: string[];
 };
 
 type FinalAgentJson = {
@@ -331,8 +329,6 @@ export async function runFinalAgent(input: FinalAgentInput): Promise<{
     model: input.model,
     temperature: input.temperature,
     maxTokens: input.maxTokens,
-    fallbackModel: input.fallbackModel,
-    fallbackChain: input.fallbackChain,
   });
 
   const report = buildReportFromModelOutput(input, rawOutput);
@@ -372,8 +368,6 @@ export async function runFinalAgent(input: FinalAgentInput): Promise<{
         model: "deepseek/deepseek-chat-v3-0324", // Use most reliable model for repair
         temperature: 0.05, // Very low temperature for repair
         maxTokens: 2500,
-        fallbackModel: input.fallbackModel,
-        fallbackChain: input.fallbackChain,
       });
 
       const repairedReport = buildReportFromModelOutput(input, repairOutput);

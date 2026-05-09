@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 
 type InputFormProps = {
   isLoading: boolean;
-  onSubmit: (task: string) => Promise<void>;
+  onSubmit: (task: string, forceFresh: boolean) => Promise<void>;
 };
 
 const defaultTask =
@@ -12,6 +12,7 @@ const defaultTask =
 
 export function InputForm({ isLoading, onSubmit }: InputFormProps) {
   const [task, setTask] = useState(defaultTask);
+  const [forceFresh, setForceFresh] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -25,7 +26,7 @@ export function InputForm({ isLoading, onSubmit }: InputFormProps) {
     }
 
     setError(null);
-    await onSubmit(trimmedTask);
+    await onSubmit(trimmedTask, forceFresh);
   }
 
   return (
@@ -56,9 +57,20 @@ export function InputForm({ isLoading, onSubmit }: InputFormProps) {
       {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs text-zinc-500">
-          Live 0G testnet pipeline with compute, storage, memory, and retrieval.
-        </p>
+        <div className="flex items-center gap-3">
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
+            <input
+              type="checkbox"
+              checked={forceFresh}
+              onChange={(e) => setForceFresh(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-zinc-500 bg-transparent accent-cyan-400"
+            />
+            Force fresh analysis
+          </label>
+          <span className="text-xs text-zinc-600">
+            Bypasses cache for reproducibility testing
+          </span>
+        </div>
 
         <button
           type="submit"

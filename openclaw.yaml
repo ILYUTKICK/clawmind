@@ -44,9 +44,9 @@ orchestration:
       label: Planner Agent
       skill: task-decomposition
       model: deepseek/deepseek-chat-v3-0324
-      fallback_model: qwen3.6-plus
       temperature: 0.2
       max_tokens: 1200
+      structured_output: true
       input:
         - user_task
         - relevant_memories
@@ -57,9 +57,9 @@ orchestration:
       label: Research Agent
       skill: research-extraction
       model: qwen3.6-plus
-      fallback_model: deepseek/deepseek-chat-v3-0324
       temperature: 0.3
       max_tokens: 1500
+      structured_output: true
       input:
         - user_task
         - execution_plan
@@ -70,9 +70,9 @@ orchestration:
       label: Risk Agent
       skill: web3-risk-analysis
       model: zai-org/GLM-5-FP8
-      fallback_model: deepseek/deepseek-chat-v3-0324
       temperature: 0.2
       max_tokens: 1500
+      structured_output: true
       input:
         - user_task
         - research_findings
@@ -85,9 +85,9 @@ orchestration:
       label: Architect Agent
       skill: architecture-design
       model: qwen3.6-plus
-      fallback_model: deepseek/deepseek-chat-v3-0324
       temperature: 0.3
       max_tokens: 1500
+      structured_output: true
       input:
         - user_task
         - research_findings
@@ -97,12 +97,12 @@ orchestration:
         - researcher
         - risk_agent
     - id: critic
-      label: Critic Agent
+      label: Critic Agent (Adversarial)
       skill: adversarial-review
       model: zai-org/GLM-5.1-FP8
-      fallback_model: zai-org/GLM-5-FP8
-      temperature: 0.4
+      temperature: 0.8
       max_tokens: 1500
+      structured_output: true
       input:
         - execution_plan
         - research_findings
@@ -118,7 +118,6 @@ orchestration:
       label: Final Decision Agent
       skill: decision-synthesis
       model: deepseek/deepseek-chat-v3-0324
-      fallback_model: zai-org/GLM-5-FP8
       temperature: 0.1
       max_tokens: 2500
       structured_output: true
@@ -141,7 +140,6 @@ orchestration:
       label: Memory Writer
       skill: persistent-memory-writing
       model: deepseek/deepseek-chat-v3-0324
-      fallback_model: zai-org/GLM-5-FP8
       temperature: 0.1
       max_tokens: 500
       structured_output: true
@@ -173,8 +171,7 @@ skills:
     description: Proposes agent, infra, storage, and execution-control architecture.
     model_family: qwen
   - id: adversarial-review
-    description: Challenges assumptions and highlights missing safeguards.
-    model_family: glm
+    description: Hostile cross-model adversarial review. Runs on a different model family (GLM) at temperature 0.8 to prevent self-confirmation bias. Challenges assumptions, identifies blind spots, and flags optimism bias.
   - id: decision-synthesis
     description: Converts agent outputs into a structured score, recommendation, risks, opportunities, and next steps.
     model_family: deepseek
@@ -214,30 +211,20 @@ zero_g_integration:
       - id: deepseek/deepseek-chat-v3-0324
         roles: [planner, final_agent, memory_writer]
         family: deepseek
-        reliability: high
       - id: qwen3.6-plus
         roles: [researcher, architect]
         family: qwen
-        reliability: medium
       - id: zai-org/GLM-5-FP8
         roles: [risk_agent]
         family: glm
-        reliability: high
       - id: zai-org/GLM-5.1-FP8
         roles: [critic]
         family: glm
-        reliability: medium
-    fallback_chain:
-      - deepseek/deepseek-chat-v3-0324
-      - zai-org/GLM-5-FP8
-      - qwen3.6-plus
     strategy: diversity_of_reasoning
     strategy_description: >
       Different model families (deepseek, qwen, GLM) have different training data,
       RLHF priors, and refusal patterns. Routing critical roles to different families
       reduces correlated errors and prevents single-vendor blind spots.
-      When a primary model is unavailable, the fallback_chain provides automatic
-      failover while still preferring model diversity.
   storage:
     provider: 0G_STORAGE
     indexer_rpc: https://indexer-storage-turbo.0g.ai
@@ -248,8 +235,8 @@ zero_g_integration:
     network: mainnet
     chain_id: 16661
     contract: AnalysisRegistry.sol
-    contract_address: "0x8d53153a8a25c81701954eed66154b3ebba8b8c7"
-    explorer: https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7
+    contract_address: "0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2"
+    explorer: https://chainscan.0g.ai/address/0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2
     description: Each completed analysis is anchored on-chain with root hash, score, recommendation, and storage URI.
   judge_mode:
     url: /judge

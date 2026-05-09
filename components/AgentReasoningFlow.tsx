@@ -56,6 +56,15 @@ const MODEL_FAMILY_COLORS: Record<string, string> = {
   Local: "bg-zinc-400/15 text-zinc-400 border-zinc-400/30",
 };
 
+// Validation mode display
+const VALIDATION_MODE_LABELS: Record<string, { label: string; color: string }> = {
+  FIRST_ATTEMPT: { label: "Validated", color: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" },
+  REPAIR_RETRY_SAME_MODEL: { label: "Repaired", color: "border-amber-400/30 bg-amber-400/10 text-amber-300" },
+  REPAIR_RETRY_SIMPLER_MODEL: { label: "Repaired (fallback model)", color: "border-orange-400/30 bg-orange-400/10 text-orange-300" },
+  FALLBACK_PARTIAL: { label: "Validation failed", color: "border-red-400/30 bg-red-400/10 text-red-300" },
+  NO_SCHEMA: { label: "N/A", color: "border-zinc-400/20 bg-zinc-400/5 text-zinc-500" },
+};
+
 // Color mapping for data flow arrows (SVG stroke colors)
 const FLOW_STROKE: Record<string, string> = {
   "text-cyan-300": "#67e8f9",
@@ -85,6 +94,18 @@ function statusBadgeClass(status: AgentStep["status"]): string {
   if (status === "running") return "border-cyan-400/30 bg-cyan-400/10 text-cyan-300";
   if (status === "failed") return "border-red-400/30 bg-red-400/10 text-red-300";
   return "border-white/10 bg-white/5 text-zinc-500";
+}
+
+function getModelShortId(modelId?: string): string {
+  if (!modelId) return "";
+  // e.g., "deepseek/deepseek-chat-v3-0324" → "deepseek-chat-v3"
+  const withoutPrefix = modelId.includes("/") ? modelId.split("/").pop() ?? modelId : modelId;
+  // Shorten known models
+  if (withoutPrefix.includes("deepseek-chat-v3")) return "deepseek-v3";
+  if (withoutPrefix.includes("qwen")) return "qwen3.6";
+  if (withoutPrefix.includes("GLM-5.1")) return "GLM-5.1";
+  if (withoutPrefix.includes("GLM-5")) return "GLM-5";
+  return withoutPrefix.slice(0, 15);
 }
 
 export function AgentReasoningFlow({ steps, isLoading }: AgentReasoningFlowProps) {
@@ -117,6 +138,15 @@ export function AgentReasoningFlow({ steps, isLoading }: AgentReasoningFlowProps
   const totalCount = agentOrder.length;
   const progressPct = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
+  // Validation summary
+  const validatedCount = steps.filter((s) => s.validation?.validated).length;
+  const repairCount = steps.filter(
+    (s) => s.validation?.mode === "REPAIR_RETRY_SAME_MODEL" || s.validation?.mode === "REPAIR_RETRY_SIMPLER_MODEL"
+  ).length;
+  const failedValidationCount = steps.filter(
+    (s) => s.validation && !s.validation.validated
+  ).length;
+
   return (
     <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
       {/* Header */}
@@ -126,7 +156,7 @@ export function AgentReasoningFlow({ steps, isLoading }: AgentReasoningFlowProps
             Agent Reasoning Flow
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Multi-agent orchestration with data flow visualization. Each arrow
+            Multi-agent orchestration with structured output validation. Each arrow
             shows what context passes between agents.
           </p>
         </div>
@@ -143,6 +173,34 @@ export function AgentReasoningFlow({ steps, isLoading }: AgentReasoningFlowProps
           )}
         </div>
       </div>
+
+      {/* Validation summary bar */}
+      {steps.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/5 bg-black/20 px-3 py-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            Validation:
+          </span>
+          {validatedCount > 0 && (
+            <span className="inline-flex items-center gap-1 rounded border border-emerald-400/20 bg-emerald-400/5 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+              ✓ {validatedCount} validated
+            </span>
+          )}
+          {repairCount > 0 && (
+            <span className="inline-flex items-center gap-1 rounded border border-amber-400/20 bg-amber-400/5 px-2 py-0.5 text-[10px] font-mono text-amber-300">
+              ⚠ {repairCount} repaired
+            </span>
+          )}
+          {failedValidationCount > 0 && (
+            <span className="inline-flex items-center gap-1 rounded border border-red-400/20 bg-red-400/5 px-2 py-0.5 text-[10px] font-mono text-red-300">
+              ✗ {failedValidationCount} failed
+            </span>
+          )}
+          {/* Model diversity badge */}
+          <span className="ml-auto inline-flex items-center gap-1 rounded border border-white/5 bg-white/[0.03] px-2 py-0.5 text-[10px] font-mono text-zinc-500">
+            Multi-model ensemble: 4 models
+          </span>
+        </div>
+      )}
 
       {/* Progress bar */}
       <div className="mb-5 h-1 w-full overflow-hidden rounded-full bg-white/5">
@@ -177,6 +235,12 @@ export function AgentReasoningFlow({ steps, isLoading }: AgentReasoningFlowProps
           const outgoingFlows = DATA_FLOWS.filter(
             (f) => f.from === agentName
           );
+
+          // Validation info
+          const validation = step?.validation;
+          const validationModeInfo = validation
+            ? VALIDATION_MODE_LABELS[validation.mode] ?? VALIDATION_MODE_LABELS.NO_SCHEMA
+            : null;
 
           return (
             <div key={agentName}>
@@ -261,13 +325,27 @@ export function AgentReasoningFlow({ steps, isLoading }: AgentReasoningFlowProps
                       >
                         {index + 1}. {label}
                       </p>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="text-[10px] font-mono text-zinc-500 truncate">
                           {skill}
                         </p>
                         {step?.modelFamily && step.modelFamily !== "Local" && (
                           <span className={`inline-flex items-center rounded border px-1.5 py-px text-[8px] font-semibold ${MODEL_FAMILY_COLORS[step.modelFamily] ?? "bg-white/5 text-zinc-500 border-white/10"}`}>
                             {step.modelFamily}
+                          </span>
+                        )}
+                        {step?.modelId && step.modelId !== "local" && step.modelId !== "all-MiniLM-L6-v2" && (
+                          <span className="inline-flex items-center rounded border border-white/5 bg-white/[0.02] px-1.5 py-px text-[7px] font-mono text-zinc-600">
+                            {getModelShortId(step.modelId)}
+                          </span>
+                        )}
+                        {/* Validation badge */}
+                        {validation && validationModeInfo && validation.mode !== "NO_SCHEMA" && (
+                          <span className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-px text-[7px] font-semibold ${validationModeInfo.color}`}>
+                            {validation.validated ? "✓" : "✗"} {validationModeInfo.label}
+                            {validation.retriesUsed > 0 && (
+                              <span className="text-[6px] opacity-70"> ({validation.retriesUsed}r)</span>
+                            )}
                           </span>
                         )}
                       </div>
@@ -317,7 +395,7 @@ export function AgentReasoningFlow({ steps, isLoading }: AgentReasoningFlowProps
                 {isCompleted && step?.output && !isExpanded && (
                   <p className="mt-2.5 pl-8 text-xs text-zinc-500 line-clamp-2 leading-relaxed">
                     {step.output.slice(0, 150)}
-                    {step.output.length > 150 ? "…" : ""}
+                    {step.output.length > 150 ? "..." : ""}
                   </p>
                 )}
 
@@ -328,15 +406,31 @@ export function AgentReasoningFlow({ steps, isLoading }: AgentReasoningFlowProps
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
                         Raw Output
                       </span>
-                      {step.startedAt && (
-                        <span className="text-[10px] font-mono text-zinc-600">
-                          {step.startedAt}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {validation && validation.mode !== "NO_SCHEMA" && (
+                          <span className="text-[9px] font-mono text-zinc-600">
+                            {validation.validated ? "Zod ✓" : "Zod ✗"} | retries: {validation.retriesUsed} | model: {getModelShortId(validation.finalModel)}
+                          </span>
+                        )}
+                        {step.startedAt && (
+                          <span className="text-[10px] font-mono text-zinc-600">
+                            {step.startedAt}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs leading-5 text-zinc-400 scrollbar-thin">
                       {step.output}
                     </pre>
+                    {/* Validation errors */}
+                    {validation && !validation.validated && validation.errors.length > 0 && (
+                      <div className="mt-2 rounded-lg border border-red-400/20 bg-red-400/5 p-2">
+                        <p className="text-[10px] font-semibold text-red-300 mb-1">Validation Errors:</p>
+                        {validation.errors.slice(0, 5).map((err, i) => (
+                          <p key={i} className="text-[9px] text-red-300/70">{err}</p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -402,6 +496,10 @@ export function AgentReasoningFlow({ steps, isLoading }: AgentReasoningFlowProps
         <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400/40" />
           Active connection
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+          <span className="inline-flex items-center rounded border border-emerald-400/30 bg-emerald-400/10 px-1 py-px text-[7px] text-emerald-300">✓ Validated</span>
+          Zod schema
         </div>
       </div>
     </section>

@@ -1,7 +1,23 @@
+"use client";
+
+import { useState } from "react";
 import { AnalysisReport, RiskSeverity } from "@/lib/types";
 
 type ReportViewProps = {
   report?: AnalysisReport;
+  task?: string;
+  receipt?: {
+    reportHash?: string;
+    storageUri?: string;
+    provider?: string;
+  };
+  onChainReceipt?: {
+    txHash?: string;
+    analysisId?: number;
+    contractAddress?: string;
+    explorerTxUrl?: string;
+    provider?: string;
+  };
 };
 
 function severityClass(severity: RiskSeverity): string {
@@ -32,7 +48,40 @@ function recommendationClass(recommendation: AnalysisReport["recommendation"]) {
   return "border-amber-400/30 bg-amber-400/10 text-amber-200";
 }
 
-export function ReportView({ report }: ReportViewProps) {
+export function ReportView({ report, task, receipt, onChainReceipt }: ReportViewProps) {
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  async function handleDownloadPdf() {
+    if (!report || !task) return;
+
+    setIsGeneratingPdf(true);
+    try {
+      const response = await fetch("/api/report/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task, report, receipt, onChainReceipt }),
+      });
+
+      if (!response.ok) {
+        throw new Error("PDF generation failed");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `clawmind-report-${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("PDF download failed:", error);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  }
+
   if (!report) {
     return (
       <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
@@ -66,6 +115,17 @@ export function ReportView({ report }: ReportViewProps) {
             {report.recommendation}
           </div>
         </div>
+      </div>
+
+      {/* Download PDF Button */}
+      <div className="mb-5">
+        <button
+          onClick={handleDownloadPdf}
+          disabled={isGeneratingPdf}
+          className="rounded-2xl border border-purple-400/30 bg-purple-400/10 px-4 py-2 text-sm font-semibold text-purple-200 transition hover:bg-purple-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isGeneratingPdf ? "Generating PDF..." : "Download PDF"}
+        </button>
       </div>
 
       <div className="grid gap-5">

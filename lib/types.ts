@@ -10,6 +10,13 @@ export type AgentName =
   | "final_agent"
   | "memory_writer";
 
+export type ValidationMode =
+  | "FIRST_ATTEMPT"
+  | "REPAIR_RETRY_SAME_MODEL"
+  | "REPAIR_RETRY_SIMPLER_MODEL"
+  | "FALLBACK_PARTIAL"
+  | "NO_SCHEMA";
+
 export type AgentStep = {
   name: AgentName;
   label: string;
@@ -23,6 +30,23 @@ export type AgentStep = {
   model?: string;
   /** Short display name for the model family */
   modelFamily?: string;
+  /** Full model ID used (e.g., "deepseek/deepseek-chat-v3-0324") */
+  modelId?: string;
+  /** Structured output validation info */
+  validation?: {
+    /** Whether the output passed Zod validation */
+    validated: boolean;
+    /** How many retries were needed */
+    retriesUsed: number;
+    /** The validation mode that produced the final output */
+    mode: ValidationMode;
+    /** Which model ultimately produced the validated output */
+    finalModel: string;
+    /** Zod validation errors (if any) */
+    errors: string[];
+    /** The structured data (if validation succeeded) */
+    structuredData?: unknown;
+  };
 };
 
 export type RiskSeverity = "low" | "medium" | "high" | "critical";

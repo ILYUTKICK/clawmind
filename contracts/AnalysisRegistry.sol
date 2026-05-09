@@ -6,6 +6,11 @@ pragma solidity ^0.8.20;
  * @notice On-chain registry for ClawMind analysis reports.
  *         Each analysis is anchored with its storage root hash,
  *         score, recommendation, and 0G Storage URI.
+ *
+ * Security features:
+ *   - Rate limiting: one submission per address per 60 seconds
+ *   - Duplicate prevention: same rootHash cannot be registered twice
+ *   - Input validation: score 0-100, non-zero rootHash
  */
 contract AnalysisRegistry {
     struct AnalysisRecord {
@@ -25,6 +30,12 @@ contract AnalysisRegistry {
 
     // rootHash => analysisId (for lookup by storage hash)
     mapping(bytes32 => uint256) public hashToAnalysisId;
+
+    // --- Rate limiting ---
+    // Tracks the timestamp of the last submission per address.
+    // Prevents spam: one submission per address per RATE_LIMIT_INTERVAL.
+    uint256 public constant RATE_LIMIT_INTERVAL = 60 seconds;
+    mapping(address => uint256) public lastSubmissionAt;
 
     // Events
     event AnalysisRecorded(
@@ -56,6 +67,11 @@ contract AnalysisRegistry {
             hashToAnalysisId[rootHash] == 0,
             "Root hash already registered"
         );
+        // Rate limit check
+        require(
+            block.timestamp >= lastSubmissionAt[msg.sender] + RATE_LIMIT_INTERVAL,
+            "Rate limited: wait before submitting again"
+        );
 
         uint256 analysisId = analysisCount + 1;
         analysisCount = analysisId;
@@ -70,6 +86,7 @@ contract AnalysisRegistry {
         });
 
         hashToAnalysisId[rootHash] = analysisId;
+        lastSubmissionAt[msg.sender] = block.timestamp;
 
         emit AnalysisRecorded(
             analysisId,

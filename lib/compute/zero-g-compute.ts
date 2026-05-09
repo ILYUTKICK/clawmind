@@ -1,16 +1,9 @@
 // ---------------------------------------------------------------------------
-// ClawMind — 0G Compute Provider with Multi-Model Routing + Auto-Fallback
+// ClawMind — 0G Compute Provider with Multi-Model Routing
 // ---------------------------------------------------------------------------
 // Routes each agent to its designated model as defined in openclaw.yaml.
 // Supports the diversity-of-reasoning strategy: different model families
 // for different agent roles to reduce correlated errors.
-//
-// FALLBACK CHAIN:
-//   1. Try the manifest-specified model
-//   2. If it fails (Service Unavailable, empty content, network error),
-//      try the fallback_model from manifest (if specified)
-//   3. If that also fails, try models from the fallback_chain in order
-//   4. If ALL remote models fail, use local deterministic fallback
 // ---------------------------------------------------------------------------
 
 type InferenceInput = {
@@ -20,10 +13,6 @@ type InferenceInput = {
   model?: string;
   temperature?: number;
   maxTokens?: number;
-  /** Fallback model from manifest (per-agent) */
-  fallbackModel?: string;
-  /** Full fallback chain from manifest (global) */
-  fallbackChain?: string[];
 };
 
 type OpenAICompatibleResponse = {
@@ -41,13 +30,6 @@ type OpenAICompatibleResponse = {
 const DEFAULT_MODEL = "deepseek/deepseek-chat-v3-0324";
 const DEFAULT_TEMPERATURE = 0.2;
 const DEFAULT_MAX_TOKENS = 1200;
-
-// Global fallback chain — used when per-agent fallback is also unavailable
-const GLOBAL_FALLBACK_CHAIN = [
-  "deepseek/deepseek-chat-v3-0324",
-  "zai-org/GLM-5-FP8",
-  "qwen3.6-plus",
-];
 
 function getComputeConfig() {
   const endpoint = process.env.ZERO_G_COMPUTE_ENDPOINT;
@@ -70,16 +52,23 @@ function getComputeConfig() {
 }
 
 /**
- * Attempt a single inference call to 0G Compute with a specific model.
- * Returns the raw content string, or null if the call failed.
+ * Run inference through 0G Compute Router with model routing.
+ *
+ * The model, temperature, and maxTokens are determined by:
+ * 1. Explicit parameters passed (from manifest config)
+ * 2. Fallback to defaults
  */
-async function tryInference(
-  config: ReturnType<typeof getComputeConfig>,
-  input: InferenceInput,
-  model: string,
-  temperature: number,
-  maxTokens: number
-): Promise<{ content: string | null; error: string | null }> {
+export async function runInference(input: InferenceInput): Promise<string> {
+  const config = getComputeConfig();
+
+  if (!config.isConfigured) {
+    return runLocalFallbackInference(input);
+  }
+
+  const model = input.model || config.model;
+  const temperature = input.temperature ?? DEFAULT_TEMPERATURE;
+  const maxTokens = input.maxTokens ?? DEFAULT_MAX_TOKENS;
+
   try {
     const response = await fetch(config.endpoint as string, {
       method: "POST",
@@ -104,24 +93,16 @@ async function tryInference(
       }),
     });
 
-    // Handle non-JSON responses (e.g. "Service Unavailable")
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("application/json")) {
-      const text = await response.text();
-      return {
-        content: null,
-        error: `${model} returned non-JSON (${response.status}): ${text.slice(0, 100)}`,
-      };
-    }
-
     const data = (await response.json()) as OpenAICompatibleResponse;
 
     if (!response.ok) {
-      const errMsg = data.error?.message || response.statusText;
-      return {
-        content: null,
-        error: `${model} HTTP ${response.status}: ${errMsg}`,
-      };
+      console.warn(
+        `[0G Compute] ${input.agentName} (${model}) failed: ${
+          data.error?.message || response.statusText
+        }`
+      );
+
+      return runLocalFallbackInference(input);
     }
 
     const content = data.choices?.[0]?.message?.content;
@@ -130,97 +111,19 @@ async function tryInference(
       console.log(
         `[0G Compute] ${input.agentName} → ${model} ✓ (${content.length} chars)`
       );
-      return { content: content.trim(), error: null };
+      return content.trim();
     }
 
-    return {
-      content: null,
-      error: `${model} returned empty content`,
-    };
+    console.warn(`[0G Compute] ${input.agentName} (${model}) returned empty content.`);
+
+    return runLocalFallbackInference(input);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return {
-      content: null,
-      error: `${model} exception: ${message}`,
-    };
-  }
-}
 
-/**
- * Run inference through 0G Compute Router with automatic model fallback.
- *
- * Model resolution order:
- * 1. Primary model (from manifest or explicit parameter)
- * 2. Per-agent fallback_model (from manifest)
- * 3. Global fallback_chain (from manifest or default)
- * 4. Local deterministic fallback (last resort)
- */
-export async function runInference(input: InferenceInput): Promise<string> {
-  const config = getComputeConfig();
+    console.warn(`[0G Compute] ${input.agentName} (${model}) exception: ${message}`);
 
-  if (!config.isConfigured) {
     return runLocalFallbackInference(input);
   }
-
-  const primaryModel = input.model || config.model;
-  const temperature = input.temperature ?? DEFAULT_TEMPERATURE;
-  const maxTokens = input.maxTokens ?? DEFAULT_MAX_TOKENS;
-  const fallbackChain = input.fallbackChain ?? GLOBAL_FALLBACK_CHAIN;
-
-  // Build the ordered list of models to try
-  const modelsToTry: string[] = [primaryModel];
-
-  // Add per-agent fallback model (skip if same as primary)
-  if (input.fallbackModel && input.fallbackModel !== primaryModel) {
-    modelsToTry.push(input.fallbackModel);
-  }
-
-  // Add global fallback chain models (skip duplicates)
-  for (const fallbackModel of fallbackChain) {
-    if (!modelsToTry.includes(fallbackModel)) {
-      modelsToTry.push(fallbackModel);
-    }
-  }
-
-  // Try each model in order
-  const failures: string[] = [];
-
-  for (let i = 0; i < modelsToTry.length; i++) {
-    const model = modelsToTry[i];
-    const isPrimary = i === 0;
-
-    const result = await tryInference(
-      config,
-      input,
-      model,
-      temperature,
-      maxTokens
-    );
-
-    if (result.content !== null) {
-      // Success!
-      if (!isPrimary) {
-        console.log(
-          `[0G Compute] ${input.agentName} — fell back from ${primaryModel} → ${model}`
-        );
-      }
-      return result.content;
-    }
-
-    // Failed — log and continue to next model
-    failures.push(result.error ?? `${model}: unknown error`);
-    console.warn(`[0G Compute] ${input.agentName} (${model}) failed: ${result.error}`);
-  }
-
-  // All remote models failed — use local deterministic fallback
-  console.warn(
-    `[0G Compute] ${input.agentName} — ALL ${modelsToTry.length} model(s) failed. Using local fallback.`
-  );
-  for (const failure of failures) {
-    console.warn(`  ✗ ${failure}`);
-  }
-
-  return runLocalFallbackInference(input);
 }
 
 function runLocalFallbackInference(input: InferenceInput): string {

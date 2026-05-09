@@ -1,7 +1,7 @@
 import { StorageReceipt } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
-// MemoryIndexReceipt — displays memory index receipt with proper labeling
+// MemoryIndexReceipt — displays memory index receipt with versioning info
 // ---------------------------------------------------------------------------
 
 type MemoryIndexReceiptProps = {
@@ -13,12 +13,22 @@ function shortenHash(value: string, chars = 12): string {
   return `${value.slice(0, chars + 2)}...${value.slice(-chars)}`;
 }
 
+function extractVersionFromUri(uri: string): string | null {
+  // local://clawmind/memory-index/v2/... -> v2
+  const match = uri.match(/v(\d+)/);
+  return match ? `v${match[1]}` : null;
+}
+
 export function MemoryIndexReceipt({ receipt }: MemoryIndexReceiptProps) {
   const isReal0G = receipt?.provider === "0G_STORAGE";
 
   const description = isReal0G
-    ? "Generated memory index was persisted through 0G Storage."
-    : "Memory index stored locally. Enable 0G Storage to persist the memory index on-chain.";
+    ? "Generated memory index was persisted through 0G Storage. Each snapshot is immutable — previous versions remain accessible via their unique 0g:// URIs."
+    : "Memory index stored locally. Enable 0G Storage to persist the memory index on-chain with immutable versioning.";
+
+  const snapshotVersion = receipt?.storageUri
+    ? extractVersionFromUri(receipt.storageUri)
+    : null;
 
   return (
     <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
@@ -29,13 +39,20 @@ export function MemoryIndexReceipt({ receipt }: MemoryIndexReceiptProps) {
           </h2>
           <p className="mt-1 text-sm text-zinc-400">{description}</p>
         </div>
-        <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${
-          isReal0G
-            ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-            : "border-yellow-400/30 bg-yellow-400/10 text-yellow-200"
-        }`}>
-          {isReal0G ? "0G Storage" : "Local Fallback"}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {snapshotVersion && (
+            <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-200">
+              Snapshot {snapshotVersion}
+            </span>
+          )}
+          <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${
+            isReal0G
+              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+              : "border-yellow-400/30 bg-yellow-400/10 text-yellow-200"
+          }`}>
+            {isReal0G ? "0G Storage" : "Local Fallback"}
+          </span>
+        </div>
       </div>
 
       {!receipt ? (
@@ -68,11 +85,16 @@ export function MemoryIndexReceipt({ receipt }: MemoryIndexReceiptProps) {
           {receipt.storageUri ? (
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <p className="text-xs uppercase tracking-wide text-zinc-500">
-                Memory Index URI
+                Memory Index URI (Immutable Snapshot)
               </p>
               <p className="mt-2 break-all font-mono text-sm text-zinc-300">
                 {receipt.storageUri}
               </p>
+              {isReal0G && (
+                <p className="mt-1 text-[10px] text-zinc-600">
+                  This URI uniquely identifies this memory snapshot. Previous snapshots remain accessible via their own 0g:// URIs.
+                </p>
+              )}
             </div>
           ) : null}
 
@@ -83,10 +105,23 @@ export function MemoryIndexReceipt({ receipt }: MemoryIndexReceiptProps) {
             <p className="mt-2 text-sm text-zinc-300">{receipt.createdAt}</p>
           </div>
 
+          {/* Embedding metadata */}
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <p className="text-xs uppercase tracking-wide text-zinc-500">
+              Semantic Retrieval Metadata
+            </p>
+            <div className="mt-2 grid gap-1.5 text-xs text-zinc-400">
+              <p>Embedding model: <span className="text-cyan-300 font-mono">all-MiniLM-L6-v2</span></p>
+              <p>Dimensions: <span className="text-cyan-300 font-mono">384</span></p>
+              <p>Retrieval method: <span className="text-cyan-300 font-mono">cosine_similarity_top_k</span></p>
+              <p>Versioning: <span className="text-cyan-300 font-mono">immutable snapshots on 0G Storage</span></p>
+            </div>
+          </div>
+
           {isReal0G && (
             <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4">
               <p className="text-xs text-emerald-200">
-                <span className="font-semibold">Verified on 0G Storage</span> — This memory index can be loaded by future analysis runs via the 0g:// URI.
+                <span className="font-semibold">Verified on 0G Storage</span> — This memory index snapshot is immutable. Future analysis runs can load it via the 0g:// URI. Each new analysis creates a new snapshot with a new URI, preserving the full history.
               </p>
             </div>
           )}
