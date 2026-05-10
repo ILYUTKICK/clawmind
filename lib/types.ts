@@ -55,6 +55,18 @@ export type AnalysisReport = {
   architecture: string[];
   nextSteps: string[];
   evidence: string[];
+  criticAdjustment?: {
+    totalChallenges: number;
+    resolvedChallenges: number;
+    unresolvedChallenges: number;
+    unresolvedHigh: number;
+    unresolvedMedium: number;
+    unresolvedLow: number;
+    penalty: number;
+    baseScore: number;
+    finalScore: number;
+    math: string;
+  };
 };
 
 export type MemoryRecord = {

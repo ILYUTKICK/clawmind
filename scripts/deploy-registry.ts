@@ -94,7 +94,8 @@ async function main() {
     console.log(`   analysisCount:       ${analysisCount}`);
     console.log(`   RATE_LIMIT_INTERVAL: ${rateLimitInterval} seconds`);
   } catch (err) {
-    console.warn("   Could not read contract state (may need a moment to propagate)");
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`   Could not read contract state yet: ${message}`);
   }
 
   // 5. Print .env update instructions
@@ -103,13 +104,13 @@ async function main() {
   console.log("========================================");
   console.log(`ZERO_G_ANALYSIS_REGISTRY_ADDRESS=${contractAddress}`);
   console.log("========================================");
-  console.log("\nOld contract (no rate limiting): 0x8d53153a8a25c81701954eed66154b3ebba8b8c7");
-  console.log("Old records are still readable at the old address.");
-  console.log("New records will be written to the new contract.\n");
+  console.log("\nNew contract deployed with rate limiting and duplicate prevention.");
+  console.log("Records will be written to this address.\n");
 
-  // 6. Optional: verify old records are still readable
-  console.log("To verify the old contract still works:");
-  console.log(`  curl ${explorerBase}/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7`);
+  // 6. Verify contract
+  console.log("To verify the contract on explorer:");
+  console.log(`  curl ${explorerBase}/address/${contractAddress}`);
+
 }
 
 main()

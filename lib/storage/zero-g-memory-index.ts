@@ -9,10 +9,12 @@
 //   - Each snapshot gets an incrementing snapshotVersion number
 //   - The payload includes previousSnapshotUri for chain-of-custody
 //   - The embedding model and dimensions are recorded in the payload
+//   - Each memory record includes embeddings for semantic retrieval
 // ---------------------------------------------------------------------------
 
 import { MemoryRecord, StorageReceipt } from "@/lib/types";
 import { createHashLikeValue, getStorageConfig } from "@/lib/storage/zero-g-config";
+import { generateEmbedding } from "@/lib/embeddings/embedding-provider";
 
 type ZeroGUploadResult = {
   rootHash?: string;
@@ -67,10 +69,47 @@ export function getLastSnapshotUri(): string | null {
   return lastSnapshotUri;
 }
 
+/**
+ * Generate embeddings for all memories (or reuse existing).
+ * This is called before saving to 0G Storage.
+ */
+async function enrichMemoriesWithEmbeddings(
+  memories: MemoryRecord[]
+): Promise<MemoryRecord[]> {
+  const enriched: MemoryRecord[] = [];
+
+  for (const memory of memories) {
+    // If embedding already exists, reuse it
+    if (memory.embedding && Array.isArray(memory.embedding) && memory.embedding.length > 0) {
+      enriched.push(memory);
+      continue;
+    }
+
+    // Generate embedding from summary + risks
+    const textToEmbed = [memory.summary, ...memory.risks].join(" ");
+    const embeddingResult = await generateEmbedding(textToEmbed);
+
+    if (embeddingResult) {
+      enriched.push({
+        ...memory,
+        embedding: embeddingResult.embedding,
+      });
+    } else {
+      // Fallback: keep memory without embedding
+      enriched.push(memory);
+    }
+  }
+
+  return enriched;
+}
+
 export async function saveMemoryIndexToZeroGStorage(input: {
   memories: MemoryRecord[];
 }): Promise<StorageReceipt> {
   const snapshotVersion = currentSnapshotVersion + 1;
+
+  // Enrich all memories with embeddings before saving
+  const enrichedMemories = await enrichMemoriesWithEmbeddings(input.memories);
 
   const payload: MemoryIndexPayload = {
     kind: "CLAWMIND_MEMORY_INDEX",
@@ -78,7 +117,7 @@ export async function saveMemoryIndexToZeroGStorage(input: {
     snapshotVersion,
     previousSnapshotUri: lastSnapshotUri,
     createdAt: new Date().toISOString(),
-    memories: input.memories,
+    memories: enrichedMemories,
     embedding: {
       model: "all-MiniLM-L6-v2",
       dimensions: 384,

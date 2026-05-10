@@ -8,80 +8,12 @@ import {
   generateEmbedding,
   cosineSimilarity,
   keywordScore,
-  isEmbeddingAvailable,
 } from "@/lib/embeddings/embedding-provider";
 
 type ScoredMemory = {
   memory: MemoryRecord;
   score: number;
 };
-
-function normalizeText(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ");
-}
-
-function extractKeywords(text: string): string[] {
-  const stopWords = new Set([
-    "this",
-    "that",
-    "with",
-    "from",
-    "into",
-    "over",
-    "under",
-    "across",
-    "protocol",
-    "project",
-    "analyze",
-    "agent",
-    "system",
-    "using",
-    "uses",
-    "while",
-    "should",
-    "would",
-    "could",
-    "about",
-    "through",
-    "between",
-    "multiple",
-  ]);
-
-  return normalizeText(text)
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter((word) => word.length >= 4)
-    .filter((word) => !stopWords.has(word));
-}
-
-function scoreMemory(task: string, memory: MemoryRecord): number {
-  const keywords = extractKeywords(task);
-
-  const searchableMemoryText = normalizeText(
-    [
-      memory.task,
-      memory.summary,
-      memory.recommendation,
-      String(memory.score),
-      memory.storageUri ?? "",
-      ...memory.risks,
-    ].join(" "),
-  );
-
-  const keywordScore = keywords.reduce((total, keyword) => {
-    return searchableMemoryText.includes(keyword) ? total + 1 : total;
-  }, 0);
-
-  const riskBoost = memory.risks.some((risk) => {
-    return normalizeText(task).includes(normalizeText(risk));
-  })
-    ? 3
-    : 0;
-
-  const storageBoost = memory.storageUri?.startsWith("0g://") ? 1 : 0;
-
-  return keywordScore + riskBoost + storageBoost;
-}
 
 function normalizeTaskForRelevance(task: string): string {
   return task
@@ -144,22 +76,38 @@ export async function getRelevantMemories(task: string): Promise<MemoryRecord[]>
       const scoredMemories: ScoredMemory[] = [];
 
       for (const memory of allMemories) {
-        // Use stored embedding if available, otherwise skip semantic scoring
-        if (memory.embedding && Array.isArray(memory.embedding) && memory.embedding.length > 0) {
-          const similarity = cosineSimilarity(taskEmbedResult.embedding, memory.embedding);
-          scoredMemories.push({ memory, score: similarity });
+        let memoryEmbedding = memory.embedding;
+
+        if (!memoryEmbedding || !Array.isArray(memoryEmbedding) || memoryEmbedding.length === 0) {
+          const memoryEmbedResult = await generateEmbedding(
+            [memory.task, memory.summary, ...memory.risks, memory.recommendation].join(" ")
+          );
+          memoryEmbedding = memoryEmbedResult?.embedding;
+        }
+
+        if (memoryEmbedding && memoryEmbedding.length > 0) {
+          const similarity = cosineSimilarity(taskEmbedResult.embedding, memoryEmbedding);
+          scoredMemories.push({
+            memory: {
+              ...memory,
+              embedding: memoryEmbedding,
+              similarityScore: similarity,
+            },
+            score: similarity,
+          });
         }
       }
 
       if (scoredMemories.length > 0) {
-        const topMemories = scoredMemories
-          .sort((a, b) => b.score - a.score)
-          .filter((item) => item.score > 0.5)
+        const sortedMemories = scoredMemories.sort((a, b) => b.score - a.score);
+        const minSimilarity = taskEmbedResult.provider === "HASHED_FALLBACK" ? 0.05 : 0.3;
+        const topMemories = sortedMemories
+          .filter((item) => item.score > minSimilarity)
           .slice(0, 3)
           .map((item) => item.memory);
 
         if (topMemories.length > 0) {
-          console.log(`[Memory] Semantic retrieval: top ${topMemories.length} memories (scores: ${scoredMemories.slice(0, 3).map(s => s.score.toFixed(2)).join(", ")})`);
+          console.log(`[Memory] Semantic retrieval: top ${topMemories.length} memories (scores: ${sortedMemories.slice(0, 3).map(s => s.score.toFixed(2)).join(", ")})`);
           return deduplicateRelevantMemories(topMemories);
         }
       }
@@ -203,6 +151,7 @@ export function formatMemoryContext(memories: MemoryRecord[]): string {
         `Risks: ${memory.risks.join(", ")}`,
         `Recommendation: ${memory.recommendation}`,
         `Score: ${memory.score}`,
+        `Similarity: ${memory.similarityScore !== undefined ? memory.similarityScore.toFixed(2) : "not computed"}`,
         `Storage URI: ${memory.storageUri || "not available"}`,
       ].join("\n");
     })
@@ -225,7 +174,7 @@ export async function saveGeneratedMemoryRecord(input: {
   );
 
   if (embedResult) {
-    console.log(`[Memory] Generated embedding for new memory (dim=${embedResult.dim})`);
+    console.log(`[Memory] Generated embedding for new memory (dim=${embedResult.dim}, provider=${embedResult.provider})`);
   }
 
   const memory: MemoryRecord = {

@@ -37,7 +37,7 @@ export function MemoryPanel({ memories }: MemoryPanelProps) {
         </div>
       ) : (
         <div className="grid gap-3">
-          {memories.map((memory, index) => {
+          {memories.map((memory) => {
             const hasSimilarity = memory.similarityScore !== undefined && memory.similarityScore > 0;
             const similarityPct = hasSimilarity
               ? (memory.similarityScore! * 100).toFixed(0)

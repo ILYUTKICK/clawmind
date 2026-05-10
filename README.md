@@ -33,7 +33,7 @@ ClawMind is an 8-step multi-agent analysis system where **every agent runs on 0G
 
 | Verifiable Claim | Live Proof |
 |---|---|
-| Contract on 0G Mainnet (Chain 16661) | [🔍 0x8d53...b8c7 on Explorer](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| Contract on 0G Mainnet (Chain 16661) | [🔍 0x01c9d9...4d2 on Explorer](https://chainscan.0g.ai/address/0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2) |
 | 0G Compute active (deepseek-chat-v3-0324) | [📊 Judge API → compute.active: true](https://clawmind-puce.vercel.app/api/judge) |
 | 0G Storage persists reports & memory | In-app: Decision Receipt → `provider: "0G_STORAGE"` + `0g://` URI |
 | On-chain hash matches report hash | In-app: Integrity Verification → "VERIFIED" |
@@ -47,8 +47,8 @@ ClawMind is an 8-step multi-agent analysis system where **every agent runs on 0G
 
 | # | What to Verify | How | Link |
 |---|---|---|---|
-| 1 | Contract deployed on 0G Mainnet | Open Explorer, verify address + Chain ID 16661 | [🔍 View on 0G Explorer](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
-| 2 | On-chain transactions exist | Check contract activity tab | [🔍 Contract Activity](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| 1 | Contract deployed on 0G Mainnet | Open Explorer, verify address + Chain ID 16661 | [🔍 View on 0G Explorer](https://chainscan.0g.ai/address/0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2) |
+| 2 | On-chain transactions exist | Check contract activity tab | [🔍 Contract Activity](https://chainscan.0g.ai/address/0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2) |
 | 3 | Judge Mode shows all 0G evidence | Open `/judge`, see compute/storage/chain/OpenClaw status | [⚖️ Judge Mode](https://clawmind-puce.vercel.app/judge) |
 | 4 | Judge API returns structured proof | `GET /api/judge` → JSON with all 0G evidence | [📊 Judge API](https://clawmind-puce.vercel.app/api/judge) |
 | 5 | OpenClaw manifest is live | Open manifest endpoint | [📋 Manifest (YAML)](https://clawmind-puce.vercel.app/api/openclaw/manifest) |
@@ -71,7 +71,7 @@ ClawMind is an 8-step multi-agent analysis system where **every agent runs on 0G
 | **0G Storage (Reports)** | [`lib/storage/zero-g-storage.ts`](lib/storage/zero-g-storage.ts) | Persists analysis reports as JSON — returns root hash + `0g://` URI | Decision Receipt → `provider: "0G_STORAGE"` |
 | **0G Storage (Memory Index)** | [`lib/storage/zero-g-memory-index.ts`](lib/storage/zero-g-memory-index.ts) | Persists memory index — returns root hash + `0g://` URI | Memory Index Receipt → `provider: "0G_STORAGE"` |
 | **0G Storage (Retrieval)** | [`lib/storage/zero-g-retrieval.ts`](lib/storage/zero-g-retrieval.ts) | Retrieves stored reports by `0g://` URI or root hash via 0G indexer | In-app: Retrieve Report panel |
-| **0G Chain (AnalysisRegistry.sol)** | [`contracts/AnalysisRegistry.sol`](contracts/AnalysisRegistry.sol) · [`lib/contracts/analysis-registry.ts`](lib/contracts/analysis-registry.ts) | Anchors every analysis on-chain — emits `AnalysisRecorded` event | [🔍 Contract on Explorer](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| **0G Chain (AnalysisRegistry.sol)** | [`contracts/AnalysisRegistry.sol`](contracts/AnalysisRegistry.sol) · [`lib/contracts/analysis-registry.ts`](lib/contracts/analysis-registry.ts) | Anchors every analysis on-chain — emits `AnalysisRecorded` event | [🔍 Contract on Explorer](https://chainscan.0g.ai/address/0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2) |
 | **0G Shared Config** | [`lib/storage/zero-g-config.ts`](lib/storage/zero-g-config.ts) | Unified mainnet/testnet switching — RPC, Explorer, Chain ID auto-resolved | `ZERO_G_NETWORK=mainnet` |
 | **OpenClaw Manifest** | [`openclaw.yaml`](openclaw.yaml) · [`/api/openclaw/manifest`](/api/openclaw/manifest) | Full orchestration manifest with 0G compute, storage, chain, and pipeline spec | [📋 Live Manifest](https://clawmind-puce.vercel.app/api/openclaw/manifest) |
 
@@ -83,14 +83,14 @@ ClawMind is an 8-step multi-agent analysis system where **every agent runs on 0G
 
 | Artifact | Value | Explorer |
 |---|---|---|
-| **AnalysisRegistry.sol** | `0x8d53153a8a25c81701954eed66154b3ebba8b8c7` | [🔍 View Contract](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| **AnalysisRegistry.sol** | `0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2` | [🔍 View Contract](https://chainscan.0g.ai/address/0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2) |
 | **Network** | 0G Mainnet (Chain ID: **16661**) | [🔗 0G Explorer](https://chainscan.0g.ai) |
 | **Compute Model** | `deepseek/deepseek-chat-v3-0324` via 0G Router | Verified in Judge API |
 | **Storage Indexer** | `https://indexer-storage-turbo.0g.ai` (Mainnet Turbo) | Used for upload + retrieval |
 | **EVM RPC** | `https://evmrpc.0g.ai` | Mainnet RPC endpoint |
 | **Report Storage tx** | *(generated after analysis run)* | *(available in Decision Receipt + Judge Mode)* |
 | **Memory Index tx** | *(generated after analysis run)* | *(available in Memory Index Receipt)* |
-| **On-chain registration tx** | *(generated after analysis run)* | [🔍 Contract Activity](https://chainscan.0g.ai/address/0x8d53153a8a25c81701954eed66154b3ebba8b8c7) |
+| **On-chain registration tx** | *(generated after analysis run)* | [🔍 Contract Activity](https://chainscan.0g.ai/address/0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2) |
 | **Storage URIs** | `0g://...` *(generated after analysis run)* | *(available in receipts + Judge Mode)* |
 
 > 💡 **Run an analysis on the [live app](https://clawmind-puce.vercel.app) to generate real tx hashes and `0g://` URIs.** They appear in the UI receipts and Judge Mode immediately.
@@ -339,7 +339,7 @@ ZERO_G_STORAGE_ENABLED=true
 ZERO_G_STORAGE_PRIVATE_KEY=your_burner_wallet_key
 
 # ─── 0G Chain (AnalysisRegistry) ───
-ZERO_G_ANALYSIS_REGISTRY_ADDRESS=0x8d53153a8a25c81701954eed66154b3ebba8b8c7
+ZERO_G_ANALYSIS_REGISTRY_ADDRESS=0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2
 
 # ─── Optional: bootstrap from previous memory index ───
 # ZERO_G_MEMORY_INDEX_URI=0g://...
@@ -386,7 +386,7 @@ curl -X POST https://clawmind-puce.vercel.app/api/analyze \
   "evidence": {
     "compute": { "active": true, "model": "deepseek/deepseek-chat-v3-0324" },
     "storage": { "configured": true, "provider": "0G_STORAGE" },
-    "onChainRegistry": { "configured": true, "address": "0x8d53153a..." }
+    "onChainRegistry": { "configured": true, "address": "0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2" }
   }
 }
 ```

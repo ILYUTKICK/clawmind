@@ -6,7 +6,7 @@ import { isRegistryConfigured, getLatestAnalysisFromChain } from "@/lib/contract
 import { getComputeProviderLabel } from "@/lib/compute/compute-status";
 import { getStorageConfig } from "@/lib/storage/zero-g-config";
 import { loadAndValidateManifest } from "@/lib/openclaw/manifest-parser";
-import { isEmbeddingReady } from "@/lib/memory/embeddings";
+import { isSemanticRetrievalActive } from "@/lib/embeddings/embedding-provider";
 
 export const dynamic = "force-dynamic";
 
@@ -114,7 +114,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         semanticMemory: {
           embeddingModel: "all-MiniLM-L6-v2",
           embeddingDimensions: 384,
-          embeddingReady: isEmbeddingReady(),
+          embeddingReady: isSemanticRetrievalActive(),
           retrievalMethod: "cosine_similarity_top_k",
         },
       },

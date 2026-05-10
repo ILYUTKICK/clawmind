@@ -1,6 +1,7 @@
 "use client";
 
 import { AgentStep, AnalysisReport } from "@/lib/types";
+import type { CriticOutput } from "@/lib/agents/critic";
 
 type AdversarialPanelProps = {
   steps: AgentStep[];
@@ -72,9 +73,7 @@ function extractClaim(text: string, maxLen = 180): string {
 
 /**
  * Parse the critic output into per-agent challenges.
- * Strategy: Split the text by agent name headings, then extract
- * the content following each heading. Multiple fallback strategies
- * for different LLM output formats.
+ * Now handles both structured JSON (new format) and legacy text format.
  */
 function extractChallenges(
   criticOutput: string | undefined,
@@ -84,6 +83,47 @@ function extractChallenges(
 
   if (!criticOutput) return challenges;
 
+  // Try to parse as structured JSON first (new format)
+  try {
+    const parsed = JSON.parse(criticOutput) as CriticOutput;
+    if (parsed.challenges && Array.isArray(parsed.challenges)) {
+      // Map challenges to agents based on challenge content
+      for (const challenge of parsed.challenges) {
+        // Try to match challenge to an agent based on keywords in the challenge text
+        let matchedAgent = null;
+        const challengeText = challenge.challenge.toLowerCase();
+
+        for (const agentName of agentNames) {
+          const agentLabel = CHALLENGED_AGENTS.find((a) => a.name === agentName)?.label.toLowerCase();
+          if (agentLabel && challengeText.includes(agentLabel)) {
+            matchedAgent = agentName;
+            break;
+          }
+        }
+
+        // If no specific agent matched, assign to the first agent that doesn't have a challenge yet
+        if (!matchedAgent) {
+          for (const agentName of agentNames) {
+            if (!challenges.has(agentName)) {
+              matchedAgent = agentName;
+              break;
+            }
+          }
+        }
+
+        // If we found an agent to assign to, add the challenge
+        if (matchedAgent) {
+          const displayText = `${challenge.challenge} (${challenge.severity} severity)`;
+          challenges.set(matchedAgent, displayText.length > 220 ? displayText.slice(0, 220).trimEnd() + "…" : displayText);
+        }
+      }
+      return challenges;
+    }
+  } catch {
+    // Not JSON, fall back to legacy text parsing
+  }
+
+  // Legacy text parsing (fallback for old format)
   // Build a list of label variants for matching
   const agentLabels = agentNames.map((name) => {
     const label = CHALLENGED_AGENTS.find((a) => a.name === name)?.label ?? name;
@@ -108,13 +148,11 @@ function extractChallenges(
       new RegExp(`(?:Critique|Review|Challenge|vs)[\\s]+(?:of|on|against)?[\\s]*${label}[:\\s]*(.*?)(?=(?:Critique|Review|Challenge|vs)[\\s]+(?:of|on|against)?[\\s]*(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
     ];
 
-    let found = false;
     for (const pat of patterns) {
       const m = criticOutput.match(pat);
       if (m && m[1] && m[1].trim().length > 10) {
         const text = m[1].trim();
         challenges.set(name, text.length > 220 ? text.slice(0, 220).trimEnd() + "…" : text);
-        found = true;
         break;
       }
     }
@@ -235,7 +273,7 @@ function ClaimCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border ${accentBorder} bg-black/20 p-4 transition-all duration-300 hover:border-opacity-60`}
+      className={`rounded-2xl border ${accentBorder} ${accentBg} p-4 transition-all duration-300 hover:border-opacity-60`}
     >
       <div className="flex items-center gap-2.5 mb-2">
         <span className="text-base leading-none">{icon}</span>
@@ -324,11 +362,18 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
   const challengedCount = criticCompleted
     ? CHALLENGED_AGENTS.filter((a) => challenges.has(a.name)).length
     : 0;
-  const resolvedCount = finalCompleted
+  const fallbackResolvedCount = finalCompleted
     ? CHALLENGED_AGENTS.filter(
         (a) => challenges.has(a.name)
       ).length
     : 0;
+  const criticAdjustment = report?.criticAdjustment;
+  const totalChallengeCount = criticAdjustment?.totalChallenges ?? challengedCount;
+  const resolvedCount = finalCompleted
+    ? criticAdjustment?.resolvedChallenges ?? fallbackResolvedCount
+    : 0;
+  const unresolvedCount = criticAdjustment?.unresolvedChallenges ?? Math.max(0, totalChallengeCount - resolvedCount);
+  const scorePenalty = criticAdjustment?.penalty ?? 0;
 
   /* ---------------------------------------------------------------------- */
   /*  Empty / placeholder state                                              */
@@ -393,12 +438,17 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
           <h2 className="text-lg font-bold text-white">Adversarial Review</h2>
           {criticCompleted && (
             <span className="rounded-full border border-red-400/30 bg-red-400/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-200">
-              {challengedCount} Challenge{challengedCount !== 1 ? "s" : ""}
+              {totalChallengeCount} Challenge{totalChallengeCount !== 1 ? "s" : ""}
             </span>
           )}
           {finalCompleted && (
             <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200">
               {resolvedCount} Resolved
+            </span>
+          )}
+          {finalCompleted && unresolvedCount > 0 && (
+            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200">
+              {unresolvedCount} Unresolved
             </span>
           )}
           {criticStep?.status === "running" && (
@@ -411,6 +461,17 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
           Critic Agent challenges assumptions from Planner, Researcher, Risk, and
           Architect agents
         </p>
+        {finalCompleted && criticAdjustment && (
+          <div className="mt-3 rounded-2xl border border-amber-400/20 bg-amber-400/[0.04] p-3">
+            <p className="text-xs font-semibold text-amber-100">
+              Critic raised {totalChallengeCount} challenge{totalChallengeCount !== 1 ? "s" : ""}.{" "}
+              {resolvedCount} resolved by Final Agent, {unresolvedCount} unresolved -&gt; score adjusted -{scorePenalty}.
+            </p>
+            <p className="mt-1 font-mono text-[10px] text-amber-200/70">
+              {criticAdjustment.math}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Battle Arena — Two-column layout */}

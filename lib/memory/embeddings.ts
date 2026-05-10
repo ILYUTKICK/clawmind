@@ -11,14 +11,19 @@
 // Subsequent calls: ~50-100ms per embedding.
 // ---------------------------------------------------------------------------
 
-let pipeline: any = null;
-let loadingPromise: Promise<any> | null = null;
+type FeatureExtractionPipeline = (
+  text: string,
+  options: { pooling: "mean"; normalize: boolean }
+) => Promise<{ data: ArrayLike<number> }>;
+
+let pipeline: FeatureExtractionPipeline | null = null;
+let loadingPromise: Promise<FeatureExtractionPipeline> | null = null;
 
 /**
  * Initialize the embedding pipeline (lazy-loaded on first call).
  * The model is cached in memory for the lifetime of the process.
  */
-async function getPipeline(): Promise<any> {
+async function getPipeline(): Promise<FeatureExtractionPipeline> {
   if (pipeline) return pipeline;
 
   if (loadingPromise) return loadingPromise;
@@ -28,7 +33,13 @@ async function getPipeline(): Promise<any> {
   loadingPromise = (async () => {
     try {
       // Dynamic import to avoid bundling issues in client-side
-      const { pipeline: createPipeline } = await import("@xenova/transformers");
+      const { pipeline: createPipeline } = (await import("@xenova/transformers")) as {
+        pipeline: (
+          task: "feature-extraction",
+          model: string,
+          options: { quantized: boolean }
+        ) => Promise<FeatureExtractionPipeline>;
+      };
       const embedder = await createPipeline(
         "feature-extraction",
         "Xenova/all-MiniLM-L6-v2",

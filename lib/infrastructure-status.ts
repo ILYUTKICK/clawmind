@@ -104,7 +104,7 @@ export function getInfrastructureStatus(): InfrastructureStatus {
     openClaw: {
       available: true,
       manifestValid: true,
-      pipelineSteps: 7,
+      pipelineSteps: 8,
     },
     semanticMemory: true,
     timestamp: new Date().toISOString(),

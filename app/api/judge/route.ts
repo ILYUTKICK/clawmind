@@ -12,7 +12,8 @@ import {
 } from "@/lib/contracts/analysis-registry";
 import { getInfrastructureStatus } from "@/lib/infrastructure-status";
 import { getExplorerAddressUrl } from "@/lib/storage/zero-g-config";
-import { getAllMemories } from "@/lib/memory/memory-manager";
+import { getAllMemories, getRelevantMemories } from "@/lib/memory/memory-manager";
+import { isSemanticRetrievalActive } from "@/lib/embeddings/embedding-provider";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -89,6 +90,8 @@ type JudgeMemoryStats = {
   totalRecords: number;
   zeroGBackedCount: number;
   sampleMemoryIds: string[];
+  semanticRetrievalActive: boolean;
+  semanticRetrievalExample: string | null;
 };
 
 type JudgeData = {
@@ -369,11 +372,24 @@ export async function GET(): Promise<NextResponse> {
       m.storageUri?.startsWith("0g://")
     ).length;
     const sampleMemoryIds = allMemories.slice(0, 5).map((m) => m.id);
+    const semanticExampleMemories = await getRelevantMemories(
+      "Self-custodial agent that auto-trades user funds with no withdrawal guards"
+    );
+    const semanticRetrievalExample =
+      semanticExampleMemories.length > 0
+        ? `Last task retrieved memories [${semanticExampleMemories
+            .map((m) =>
+              `${m.id}${m.similarityScore !== undefined ? ` (sim ${m.similarityScore.toFixed(2)})` : ""}`
+            )
+            .join(", ")}]`
+        : null;
 
     const memory: JudgeMemoryStats = {
       totalRecords: allMemories.length,
       zeroGBackedCount,
       sampleMemoryIds,
+      semanticRetrievalActive: isSemanticRetrievalActive(),
+      semanticRetrievalExample,
     };
 
     // --- Analysis count ---

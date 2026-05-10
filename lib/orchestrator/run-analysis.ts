@@ -152,7 +152,7 @@ export async function runAnalysis(
   pushStep(criticStep, "critic");
 
   const critiqueOutput = await runCriticAgent(task, plan, researchOutput, riskOutput, architectureOutput);
-  updateStep(criticIdx, completeStep(criticStep, critiqueOutput), "final_agent");
+  updateStep(criticIdx, completeStep(criticStep, JSON.stringify(critiqueOutput)), "final_agent");
 
   // ============================================================
   // Step 7: Final Decision Agent

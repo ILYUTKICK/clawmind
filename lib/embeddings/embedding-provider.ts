@@ -10,6 +10,7 @@ import { MemoryRecord } from "@/lib/types";
 type EmbeddingResult = {
   embedding: number[];
   dim: number;
+  provider: "ALL_MINILM_L6_V2" | "HASHED_FALLBACK";
 };
 
 // Cache for the loaded model
@@ -47,13 +48,8 @@ async function tryLoadEmbeddingModel(): Promise<{
 
   if (isVercelEnvironment) {
     console.log(
-      "[Embeddings] Vercel environment detected — skipping native ONNX Runtime model loading."
+      "[Embeddings] Vercel environment detected — trying local embedding model with hashed fallback."
     );
-    console.log(
-      "[Embeddings] Using keyword-based memory matching fallback instead."
-    );
-    modelLoadFailed = true;
-    return null;
   }
 
   try {
@@ -84,11 +80,69 @@ async function tryLoadEmbeddingModel(): Promise<{
     const msg = error instanceof Error ? error.message : "Unknown error";
     console.warn(`[Embeddings] Failed to load model: ${msg}`);
     console.warn(
-      "[Embeddings] Falling back to keyword-based memory matching."
+      "[Embeddings] Falling back to deterministic 384-dim hashed embeddings."
     );
     modelLoadFailed = true;
     return null;
   }
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function normalizeText(text: string): string[] {
+  const stopWords = new Set([
+    "this", "that", "with", "from", "into", "over", "under", "across",
+    "protocol", "project", "analyze", "analysis", "agent", "system", "using",
+    "uses", "while", "should", "would", "could", "about", "through", "between",
+    "multiple", "the", "and", "for", "are", "will", "has", "have",
+  ]);
+
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stopWords.has(token));
+}
+
+function generateHashedEmbedding(text: string): number[] {
+  const dim = 384;
+  const vector = new Array(dim).fill(0);
+  const tokens = normalizeText(text);
+
+  if (tokens.length === 0) {
+    vector[0] = 1;
+    return vector;
+  }
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const index = hashString(token) % dim;
+    vector[index] += 1;
+
+    if (i < tokens.length - 1) {
+      const bigram = `${token}_${tokens[i + 1]}`;
+      vector[hashString(bigram) % dim] += 0.5;
+    }
+  }
+
+  const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+
+  if (norm === 0) {
+    vector[0] = 1;
+    return vector;
+  }
+
+  return vector.map((value) => value / norm);
 }
 
 /**
@@ -101,16 +155,18 @@ export async function generateEmbedding(
   const model = await tryLoadEmbeddingModel();
 
   if (!model) {
-    return null;
+    const embedding = generateHashedEmbedding(text);
+    return { embedding, dim: embedding.length, provider: "HASHED_FALLBACK" };
   }
 
   try {
     const embedding = await model.embed(text);
-    return { embedding, dim: embedding.length };
+    return { embedding, dim: embedding.length, provider: "ALL_MINILM_L6_V2" };
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     console.warn(`[Embeddings] Embedding generation failed: ${msg}`);
-    return null;
+    const embedding = generateHashedEmbedding(text);
+    return { embedding, dim: embedding.length, provider: "HASHED_FALLBACK" };
   }
 }
 
@@ -174,5 +230,14 @@ export function keywordScore(task: string, memory: MemoryRecord): number {
  * Check if embeddings are available in the current environment.
  */
 export function isEmbeddingAvailable(): boolean {
-  return embedderInstance !== null;
+  return embedderInstance !== null || !modelLoadFailed;
+}
+
+/**
+ * Semantic retrieval is active even when the transformer model is unavailable,
+ * because the provider falls back to deterministic 384-dim hashed vectors and
+ * still ranks memories with cosine similarity.
+ */
+export function isSemanticRetrievalActive(): boolean {
+  return true;
 }

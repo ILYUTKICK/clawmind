@@ -13,7 +13,7 @@ import {
 } from "@/lib/storage/zero-g-config";
 import { getComputeProviderLabel } from "@/lib/compute/compute-status";
 import { isRegistryConfigured } from "@/lib/contracts/analysis-registry";
-import { getTask, getLatestTask } from "@/lib/orchestrator/task-store";
+import { getTask } from "@/lib/orchestrator/task-store";
 
 export const dynamic = "force-dynamic";
 

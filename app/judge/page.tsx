@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 
 // ---------------------------------------------------------------------------
 // Types (mirroring the API response)
@@ -71,6 +72,8 @@ type JudgeMemoryStats = {
   totalRecords: number;
   zeroGBackedCount: number;
   sampleMemoryIds: string[];
+  semanticRetrievalActive: boolean;
+  semanticRetrievalExample: string | null;
 };
 
 type JudgeData = {
@@ -265,7 +268,10 @@ export default function JudgePage() {
 
   // Initial fetch
   useEffect(() => {
-    fetchData();
+    const timeout = window.setTimeout(() => {
+      fetchData();
+    }, 0);
+    return () => window.clearTimeout(timeout);
   }, [fetchData]);
 
   // Auto-refresh every 30s
@@ -278,11 +284,16 @@ export default function JudgePage() {
 
   // Countdown timer
   useEffect(() => {
-    setCountdown(REFRESH_INTERVAL_MS / 1000);
+    const reset = window.setTimeout(() => {
+      setCountdown(REFRESH_INTERVAL_MS / 1000);
+    }, 0);
     const tick = setInterval(() => {
       setCountdown((prev) => (prev <= 1 ? REFRESH_INTERVAL_MS / 1000 : prev - 1));
     }, 1000);
-    return () => clearInterval(tick);
+    return () => {
+      window.clearTimeout(reset);
+      clearInterval(tick);
+    };
   }, [lastUpdated]);
 
   if (loading) {
@@ -604,6 +615,11 @@ export default function JudgePage() {
                 detail: `Memory index with ${data.memory.zeroGBackedCount} 0G-backed records, retrievable by 0g:// URI.`,
               },
               {
+                req: "Semantic memory retrieval",
+                met: data.memory.semanticRetrievalActive,
+                detail: data.memory.semanticRetrievalExample ?? "Embedding-based top-k retrieval is active.",
+              },
+              {
                 req: "On-chain anchoring (0G Chain)",
                 met: ig.onChain.configured,
                 detail: "AnalysisRegistry.sol registers each analysis on-chain with root hash, score, and recommendation.",
@@ -641,7 +657,7 @@ export default function JudgePage() {
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-center">
               <p className="text-2xl font-bold text-white">{data.memory.totalRecords}</p>
               <p className="text-xs text-zinc-500 mt-1">Total Memory Records</p>
@@ -654,19 +670,30 @@ export default function JudgePage() {
               <p className="text-2xl font-bold text-cyan-300">{data.memory.totalRecords - data.memory.zeroGBackedCount}</p>
               <p className="text-xs text-zinc-500 mt-1">Local / Seed Memories</p>
             </div>
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-center">
+              <p className={data.memory.semanticRetrievalActive ? "text-2xl font-bold text-emerald-300" : "text-2xl font-bold text-yellow-300"}>
+                {data.memory.semanticRetrievalActive ? "Active" : "Pending"}
+              </p>
+              <p className="text-xs text-zinc-500 mt-1">Semantic Retrieval</p>
+            </div>
           </div>
+          {data.memory.semanticRetrievalExample && (
+            <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 font-mono text-xs text-cyan-300">
+              {data.memory.semanticRetrievalExample}
+            </p>
+          )}
         </section>
 
         {/* ─── Quick Links ─── */}
         <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-2xl shadow-black/20">
           <h2 className="text-lg font-bold text-white mb-4">Quick Links for Judges</h2>
           <div className="flex flex-wrap gap-3">
-            <a
+            <Link
               href="/"
               className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/10"
             >
               Main App
-            </a>
+            </Link>
             <a
               href="/api/openclaw/manifest"
               target="_blank"
