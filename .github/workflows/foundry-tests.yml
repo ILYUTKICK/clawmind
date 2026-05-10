@@ -4,19 +4,15 @@ on:
   push:
     branches: [main]
     paths:
-      - 'contracts/**'
+      - "contracts/**"
   pull_request:
     branches: [main]
     paths:
-      - 'contracts/**'
+      - "contracts/**"
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: contracts
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,16 +21,10 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly
+          version: stable
 
-      - name: Run Forge build
-        run: forge build --sizes
-        id: build
+      - name: Build contracts
+        run: cd contracts && forge build
 
-      - name: Run Forge tests
-        run: forge test -vvv
-        id: test
-
-      - name: Run Forge coverage
-        run: forge coverage --report summary
-        id: coverage
+      - name: Run tests
+        run: cd contracts && forge test -vv
