@@ -287,7 +287,7 @@ export async function runFinalAgent(input: FinalAgentInput): Promise<{
     "- medium",
     "- high",
     "- critical",
-  ].join("\n"),
+    ].join("\n"),
     userPrompt: [
       `Task: ${input.task}`,
       "",

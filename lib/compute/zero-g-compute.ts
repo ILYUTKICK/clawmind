@@ -1,18 +1,19 @@
 // ---------------------------------------------------------------------------
-// ClawMind — 0G Compute Provider with Multi-Model Routing
+// ClawMind — 0G Compute Inference with Model Routing + Timeout + Fail-Fast
 // ---------------------------------------------------------------------------
-// Routes each agent to its designated model as defined in openclaw.yaml.
-// Supports the diversity-of-reasoning strategy: different model families
-// for different agent roles to reduce correlated errors.
+// Key optimizations:
+//   1. Per-agent model selection via model-router
+//   2. Request-level timeout (AbortController)
+//   3. Fallback model chain on failure
+//   4. Local deterministic fallback if all models fail
 // ---------------------------------------------------------------------------
+
+import { getModelForAgent, getFallbackChain } from "./model-router";
 
 type InferenceInput = {
   agentName: string;
   systemPrompt: string;
   userPrompt: string;
-  model?: string;
-  temperature?: number;
-  maxTokens?: number;
 };
 
 type OpenAICompatibleResponse = {
@@ -26,15 +27,9 @@ type OpenAICompatibleResponse = {
   };
 };
 
-// Default model configuration
-const DEFAULT_MODEL = "deepseek/deepseek-chat-v3-0324";
-const DEFAULT_TEMPERATURE = 0.2;
-const DEFAULT_MAX_TOKENS = 1200;
-
 function getComputeConfig() {
   const endpoint = process.env.ZERO_G_COMPUTE_ENDPOINT;
   const apiKey = process.env.ZERO_G_COMPUTE_API_KEY;
-  const model = process.env.ZERO_G_COMPUTE_MODEL || DEFAULT_MODEL;
 
   const isConfigured =
     typeof endpoint === "string" &&
@@ -46,18 +41,62 @@ function getComputeConfig() {
   return {
     endpoint,
     apiKey,
-    model,
     isConfigured,
   };
 }
 
-/**
- * Run inference through 0G Compute Router with model routing.
- *
- * The model, temperature, and maxTokens are determined by:
- * 1. Explicit parameters passed (from manifest config)
- * 2. Fallback to defaults
- */
+// Make a single inference call with timeout
+async function callModel(
+  endpoint: string,
+  apiKey: string,
+  model: string,
+  input: InferenceInput,
+  maxTokens: number,
+  temperature: number,
+  timeoutMs: number,
+): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: input.systemPrompt },
+          { role: "user", content: input.userPrompt },
+        ],
+        temperature,
+        max_tokens: maxTokens,
+      }),
+      signal: controller.signal,
+    });
+
+    const data = (await response.json()) as OpenAICompatibleResponse;
+
+    if (!response.ok) {
+      throw new Error(
+        `Model ${model} returned ${response.status}: ${data.error?.message || response.statusText}`
+      );
+    }
+
+    const content = data.choices?.[0]?.message?.content;
+
+    if (typeof content === "string" && content.trim().length > 0) {
+      return content.trim();
+    }
+
+    throw new Error(`Model ${model} returned empty content`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function runInference(input: InferenceInput): Promise<string> {
   const config = getComputeConfig();
 
@@ -65,65 +104,54 @@ export async function runInference(input: InferenceInput): Promise<string> {
     return runLocalFallbackInference(input);
   }
 
-  const model = input.model || config.model;
-  const temperature = input.temperature ?? DEFAULT_TEMPERATURE;
-  const maxTokens = input.maxTokens ?? DEFAULT_MAX_TOKENS;
+  // Get per-agent model configuration
+  const modelConfig = getModelForAgent(input.agentName);
+  const primaryModel = modelConfig.model;
 
-  try {
-    const response = await fetch(config.endpoint as string, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: "system",
-            content: input.systemPrompt,
-          },
-          {
-            role: "user",
-            content: input.userPrompt,
-          },
-        ],
-        temperature,
-        max_tokens: maxTokens,
-      }),
-    });
+  // Build model chain: primary → fallbacks
+  const modelChain = [primaryModel, ...getFallbackChain(primaryModel)];
 
-    const data = (await response.json()) as OpenAICompatibleResponse;
+  // Try each model in the chain
+  for (let i = 0; i < modelChain.length; i++) {
+    const currentModel = modelChain[i];
 
-    if (!response.ok) {
+    try {
+      const result = await callModel(
+        config.endpoint as string,
+        config.apiKey as string,
+        currentModel,
+        input,
+        modelConfig.maxTokens,
+        modelConfig.temperature,
+        modelConfig.timeoutMs,
+      );
+
+      if (i > 0) {
+        console.log(
+          `[0G Compute] ${input.agentName} succeeded on fallback model ${currentModel} (attempt ${i + 1})`
+        );
+      }
+
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      const isTimeout = error instanceof Error && error.name === "AbortError";
+
       console.warn(
-        `[0G Compute] ${input.agentName} (${model}) failed: ${
-          data.error?.message || response.statusText
-        }`
+        `[0G Compute] ${input.agentName} model ${currentModel} ${isTimeout ? "timed out" : "failed"}: ${message}`
       );
 
-      return runLocalFallbackInference(input);
+      // If this was the last model in the chain, fall through to local fallback
+      if (i === modelChain.length - 1) {
+        console.warn(
+          `[0G Compute] ${input.agentName} all models failed, using local fallback`
+        );
+      }
     }
-
-    const content = data.choices?.[0]?.message?.content;
-
-    if (typeof content === "string" && content.trim().length > 0) {
-      console.log(
-        `[0G Compute] ${input.agentName} → ${model} ✓ (${content.length} chars)`
-      );
-      return content.trim();
-    }
-
-    console.warn(`[0G Compute] ${input.agentName} (${model}) returned empty content.`);
-
-    return runLocalFallbackInference(input);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-
-    console.warn(`[0G Compute] ${input.agentName} (${model}) exception: ${message}`);
-
-    return runLocalFallbackInference(input);
   }
+
+  // All models failed — use local fallback
+  return runLocalFallbackInference(input);
 }
 
 function runLocalFallbackInference(input: InferenceInput): string {
@@ -248,7 +276,7 @@ function runLocalFallbackInference(input: InferenceInput): string {
         ],
       },
       null,
-      2
+      2,
     );
   }
 

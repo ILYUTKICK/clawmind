@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { AgentReasoningFlow } from "@/components/AgentReasoningFlow";
 import { InputForm } from "@/components/InputForm";
 import { MemoryPanel } from "@/components/MemoryPanel";
@@ -10,31 +10,48 @@ import { RetrievedReportPanel } from "@/components/RetrievedReportPanel";
 import { SystemStatus } from "@/components/SystemStatus";
 import { TrackFitPanel } from "@/components/TrackFitPanel";
 import { OnChainReceiptPanel } from "@/components/OnChainReceiptPanel";
-import { AnalysisResult } from "@/lib/types";
-import type { InfrastructureStatus } from "@/lib/infrastructure-status";
+import { AnalysisResult, AgentStep } from "@/lib/types";
+import { InfrastructureStatus } from "@/lib/infrastructure-status";
 import { MemoryIndexReceipt } from "@/components/MemoryIndexReceipt";
 import { InfrastructureEvidence } from "@/components/InfrastructureEvidence";
 import { MemoryGraph } from "@/components/MemoryGraph";
 import { IntegrityPanel } from "@/components/IntegrityPanel";
 import { AdversarialPanel } from "@/components/AdversarialPanel";
 
-// ---------------------------------------------------------------------------
-// Infrastructure status fetched from /api/status
-// Uses the shared InfrastructureStatus type from lib/infrastructure-status
-// as the single source of truth. The API response also includes a `timestamp`
-// and the backward-compat `storage.is_enabled` alias, but the core fields
-// match the shared type.
-// ---------------------------------------------------------------------------
-
+// Use the canonical type from lib/infrastructure-status.ts
 type InfraStatus = InfrastructureStatus;
+
+// Task polling response from /api/status?taskId=...
+type TaskPollResponse = {
+  taskId: string;
+  task: string;
+  status: "running" | "completed" | "failed";
+  currentStep: string;
+  steps: AgentStep[];
+  result: AnalysisResult | null;
+  error: string | null;
+  updatedAt: string;
+};
+
+const POLL_INTERVAL_MS = 3000;
 
 export default function HomePage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [liveSteps, setLiveSteps] = useState<AgentStep[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [infraStatus, setInfraStatus] = useState<InfraStatus | null>(null);
+  const [currentStep, setCurrentStep] = useState<string>("");
 
-  // Fetch infrastructure status on mount
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const taskIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     fetch("/api/status")
       .then((res) => {
@@ -42,47 +59,82 @@ export default function HomePage() {
         return res.json();
       })
       .then((data: InfraStatus) => setInfraStatus(data))
-      .catch(() => {
-        // Silently fail — the page still works without it
-      });
+      .catch(() => {});
   }, []);
 
-  async function runAnalysis(task: string, forceFresh: boolean = false) {
+  const startPolling = useCallback((taskId: string) => {
+    taskIdRef.current = taskId;
+    if (pollingRef.current) clearInterval(pollingRef.current);
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/status?taskId=${taskId}`);
+        if (!res.ok) {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          setIsLoading(false);
+          setRequestError("Task status not found. It may have expired.");
+          return;
+        }
+
+        const data: TaskPollResponse = await res.json();
+        setLiveSteps(data.steps);
+        setCurrentStep(data.currentStep);
+
+        if (data.status === "completed" && data.result) {
+          setAnalysis(data.result);
+          setIsLoading(false);
+          if (pollingRef.current) clearInterval(pollingRef.current);
+        } else if (data.status === "failed") {
+          setIsLoading(false);
+          setRequestError(data.error || "Pipeline failed unexpectedly.");
+          if (pollingRef.current) clearInterval(pollingRef.current);
+        }
+      } catch {
+        // keep polling
+      }
+    };
+
+    poll();
+    pollingRef.current = setInterval(poll, POLL_INTERVAL_MS);
+  }, []);
+
+  async function runAnalysis(task: string) {
     setIsLoading(true);
     setRequestError(null);
+    setAnalysis(null);
+    setLiveSteps([]);
+    setCurrentStep("starting");
 
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ task, forceFresh }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task }),
       });
 
-      const data = (await response.json()) as AnalysisResult & {
+      const data = await response.json() as {
+        taskId?: string;
+        status?: string;
         error?: string;
         details?: string;
       };
 
       if (!response.ok) {
-        throw new Error(
-          data.details || data.error || "Analysis request failed."
-        );
+        throw new Error(data.details || data.error || "Analysis request failed.");
       }
 
-      setAnalysis(data);
+      if (data.taskId) {
+        startPolling(data.taskId);
+      } else {
+        throw new Error("No taskId returned from server.");
+      }
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown request error";
-
+      const message = error instanceof Error ? error.message : "Unknown request error";
       setRequestError(message);
-    } finally {
       setIsLoading(false);
     }
   }
 
-  // Dynamic header labels based on real infrastructure status
   const networkLabel = infraStatus
     ? infraStatus.network.name === "mainnet"
       ? "0G Mainnet"
@@ -101,7 +153,6 @@ export default function HomePage() {
       : "Local Fallback"
     : "0G Storage";
 
-  // Compute missing config items for the setup warning
   const missingConfig: string[] = [];
   if (infraStatus) {
     if (infraStatus.network.name !== "mainnet") {
@@ -116,12 +167,13 @@ export default function HomePage() {
     }
   }
 
+  const displaySteps = analysis?.steps || liveSteps;
+
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.16),_transparent_35%),radial-gradient(circle_at_top_right,_rgba(168,85,247,0.14),_transparent_30%)]" />
 
       <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-8 sm:px-8 lg:px-10">
-        {/* Setup Warning Banner */}
         {missingConfig.length > 0 && (
           <div className="rounded-3xl border border-yellow-400/30 bg-yellow-400/5 p-5">
             <div className="flex items-start gap-3">
@@ -219,9 +271,19 @@ export default function HomePage() {
         </header>
 
         <section className="grid gap-8 lg:grid-cols-2">
-          {/* LEFT COLUMN — Input & Pipeline */}
           <div className="flex flex-col gap-8">
             <InputForm isLoading={isLoading} onSubmit={runAnalysis} />
+
+            {isLoading && currentStep && (
+              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="text-xs font-mono text-cyan-300">
+                    Running: {currentStep.replace(/_/g, " ")}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {requestError ? (
               <div className="rounded-3xl border border-red-400/30 bg-red-400/10 p-5 text-sm text-red-200">
@@ -232,19 +294,28 @@ export default function HomePage() {
             <SystemStatus analysis={analysis} infraStatus={infraStatus} />
             <InfrastructureEvidence analysis={analysis} infraStatus={infraStatus} />
             <AgentReasoningFlow
-              steps={analysis?.steps || []}
+              steps={displaySteps}
               isLoading={isLoading}
             />
           </div>
 
-          {/* RIGHT COLUMN — Results & Evidence */}
           <div className="flex flex-col gap-8">
             <TrackFitPanel />
             <ReportView
               report={analysis?.report}
               task={analysis?.task}
-              receipt={analysis?.receipt}
-              onChainReceipt={analysis?.onChainReceipt}
+              receipt={analysis?.receipt ? {
+                reportHash: analysis.receipt.reportHash,
+                storageUri: analysis.receipt.storageUri,
+                provider: analysis.receipt.provider,
+              } : undefined}
+              onChainReceipt={analysis?.onChainReceipt ? {
+                txHash: analysis.onChainReceipt.txHash,
+                analysisId: analysis.onChainReceipt.analysisId,
+                contractAddress: analysis.onChainReceipt.contractAddress,
+                explorerTxUrl: analysis.onChainReceipt.explorerTxUrl,
+                provider: analysis.onChainReceipt.provider,
+              } : undefined}
             />
             {analysis ? (
               <>

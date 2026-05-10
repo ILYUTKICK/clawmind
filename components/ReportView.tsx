@@ -49,23 +49,18 @@ function recommendationClass(recommendation: AnalysisReport["recommendation"]) {
 }
 
 export function ReportView({ report, task, receipt, onChainReceipt }: ReportViewProps) {
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
-  async function handleDownloadPdf() {
+  async function downloadPdf() {
     if (!report || !task) return;
-
-    setIsGeneratingPdf(true);
+    setPdfLoading(true);
     try {
       const response = await fetch("/api/report/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task, report, receipt, onChainReceipt }),
       });
-
-      if (!response.ok) {
-        throw new Error("PDF generation failed");
-      }
-
+      if (!response.ok) throw new Error("PDF generation failed");
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -78,7 +73,7 @@ export function ReportView({ report, task, receipt, onChainReceipt }: ReportView
     } catch (error) {
       console.error("PDF download failed:", error);
     } finally {
-      setIsGeneratingPdf(false);
+      setPdfLoading(false);
     }
   }
 
@@ -114,18 +109,14 @@ export function ReportView({ report, task, receipt, onChainReceipt }: ReportView
           >
             {report.recommendation}
           </div>
+          <button
+            onClick={downloadPdf}
+            disabled={pdfLoading}
+            className="rounded-2xl border border-purple-400/30 bg-purple-400/10 px-4 py-2 text-sm font-semibold text-purple-200 transition hover:bg-purple-400/20 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {pdfLoading ? "Generating..." : "Download PDF"}
+          </button>
         </div>
-      </div>
-
-      {/* Download PDF Button */}
-      <div className="mb-5">
-        <button
-          onClick={handleDownloadPdf}
-          disabled={isGeneratingPdf}
-          className="rounded-2xl border border-purple-400/30 bg-purple-400/10 px-4 py-2 text-sm font-semibold text-purple-200 transition hover:bg-purple-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isGeneratingPdf ? "Generating PDF..." : "Download PDF"}
-        </button>
       </div>
 
       <div className="grid gap-5">

@@ -34,8 +34,6 @@ export function SystemStatus({ analysis, infraStatus }: SystemStatusProps) {
   const hasMemoryIndexReceipt =
     analysis?.memoryIndexReceipt?.provider === "0G_STORAGE";
 
-  // Use real infrastructure status when available, otherwise fall back to
-  // receipt-based detection (which only works after an analysis run).
   const computeActive = infraStatus ? infraStatus.compute.isConfigured : hasAnalysis;
   const storageActive = infraStatus ? infraStatus.storage.isConfigured : hasStorageReceipt;
   const memoryActive = hasMemoryIndexReceipt;

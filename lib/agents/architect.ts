@@ -1,38 +1,34 @@
 import { runInference } from "@/lib/compute/zero-g-compute";
-import { getStructuredOutputInstructions } from "@/lib/structured-output/with-structured-output";
 
 export async function runArchitectAgent(
   task: string,
   researchOutput: string,
-  riskOutput: string,
-  model?: string,
-  temperature?: number,
-  maxTokens?: number
+  riskOutput: string
 ) {
+  const riskSection = riskOutput
+    ? [
+        "",
+        "Risk output:",
+        riskOutput,
+        "",
+      ].join("\n")
+    : [
+        "",
+        "Risk output: Not yet available (running in parallel). Propose architecture based on research findings alone.",
+        "",
+      ].join("\n");
+
   return runInference({
     agentName: "architect",
-    systemPrompt: [
-      "You are the Architect Agent in ClawMind.",
-      "Propose a practical architecture for a Web3/AI project using agent orchestration, 0G Compute, and 0G Storage.",
-      "",
-      "Return a JSON object with:",
-      '- "recommendations": array of architecture recommendations',
-      '- "components": array of system components',
-      getStructuredOutputInstructions("architect"),
-    ].join("\n"),
+    systemPrompt:
+      "You are the Architect Agent in ClawMind. Propose a practical architecture for a Web3/AI project using agent orchestration, 0G Compute, and 0G Storage. Be concise and specific.",
     userPrompt: [
       `Task: ${task}`,
       "",
       "Research output:",
       researchOutput,
-      "",
-      "Risk output:",
-      riskOutput,
-      "",
-      "Return the architecture as a JSON object.",
+      riskSection,
+      "Return architecture recommendations in 5-7 bullet points max.",
     ].join("\n"),
-    model,
-    temperature,
-    maxTokens,
   });
 }
