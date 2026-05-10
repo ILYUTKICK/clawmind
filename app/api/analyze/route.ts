@@ -1,29 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runAnalysis, checkManifestValid } from "@/lib/orchestrator/run-analysis";
-import { buildCacheKey, getCachedAnalysis, setCachedAnalysis } from "@/lib/cache/analysis-cache";
-import { getRelevantMemoryIds } from "@/lib/memory/memory-manager";
+import { runAnalysis } from "@/lib/orchestrator/run-analysis";
+
+// Vercel serverless function max duration (seconds)
+// Hobby: 60s, Pro: 300s, Enterprise: 900s
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
-    // ── Manifest validation gate ──
-    // If openclaw.yaml is invalid, the pipeline MUST NOT start.
-    const { valid, validation } = await checkManifestValid();
-
-    if (!valid) {
-      return NextResponse.json(
-        {
-          error: "OpenClaw manifest is invalid — pipeline cannot start.",
-          manifestErrors: validation?.errors ?? [],
-          manifestWarnings: validation?.warnings ?? [],
-        },
-        { status: 503 }
-      );
-    }
-
-    const body = (await request.json()) as {
-      task?: unknown;
-      forceFresh?: unknown;
-    };
+    const body = (await request.json()) as { task?: unknown };
 
     if (typeof body.task !== "string" || body.task.trim().length < 10) {
       return NextResponse.json(
@@ -35,46 +19,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const task = body.task.trim();
-    const forceFresh = body.forceFresh === true;
+    const result = await runAnalysis(body.task.trim());
 
-    // ── Cache check ──
-    // Build cache key from task + current memory snapshot
-    const memoryIds = await getRelevantMemoryIds(task);
-    const cacheKey = buildCacheKey(task, memoryIds);
-
-    const cached = getCachedAnalysis(cacheKey, forceFresh);
-    if (cached) {
-      // Return cached result with a flag indicating it was cached
-      return NextResponse.json(
-        {
-          ...cached.result,
-          _meta: {
-            cached: true,
-            cachedAt: new Date(cached.cachedAt).toISOString(),
-            cacheAgeSeconds: Math.round((Date.now() - cached.cachedAt) / 1000),
-            cacheKey: cacheKey.slice(0, 12) + "...",
-          },
-        },
-        { status: 200 }
-      );
-    }
-
-    const result = await runAnalysis(task);
-
-    // Store in cache for future identical requests
-    setCachedAnalysis(cacheKey, result);
-
-    return NextResponse.json(
-      {
-        ...result,
-        _meta: {
-          cached: false,
-          cacheKey: cacheKey.slice(0, 12) + "...",
-        },
-      },
-      { status: 200 }
-    );
+    return NextResponse.json(result, { status: 200 });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown server error";

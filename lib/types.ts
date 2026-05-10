@@ -1,4 +1,5 @@
 export type AgentStatus = "pending" | "running" | "completed" | "failed";
+export type ValidationMode = "NO_SCHEMA" | "WEAK" | "STRICT" | "RETRY" | "FALLBACK";
 
 export type AgentName =
   | "memory_retrieval"
@@ -10,13 +11,6 @@ export type AgentName =
   | "final_agent"
   | "memory_writer";
 
-export type ValidationMode =
-  | "FIRST_ATTEMPT"
-  | "REPAIR_RETRY_SAME_MODEL"
-  | "REPAIR_RETRY_SIMPLER_MODEL"
-  | "FALLBACK_PARTIAL"
-  | "NO_SCHEMA";
-
 export type AgentStep = {
   name: AgentName;
   label: string;
@@ -26,26 +20,19 @@ export type AgentStep = {
   startedAt?: string;
   finishedAt?: string;
   error?: string;
-  /** Which 0G Compute model was used for this step */
-  model?: string;
-  /** Short display name for the model family */
+  model?: string;  
   modelFamily?: string;
-  /** Full model ID used (e.g., "deepseek/deepseek-chat-v3-0324") */
   modelId?: string;
-  /** Structured output validation info */
+  skill?: string;
   validation?: {
-    /** Whether the output passed Zod validation */
     validated: boolean;
-    /** How many retries were needed */
-    retriesUsed: number;
-    /** The validation mode that produced the final output */
-    mode: ValidationMode;
-    /** Which model ultimately produced the validated output */
-    finalModel: string;
-    /** Zod validation errors (if any) */
-    errors: string[];
-    /** The structured data (if validation succeeded) */
-    structuredData?: unknown;
+    mode?: ValidationMode;   // ← было string
+    retries?: number;
+    retriesUsed?: number;
+    model?: string;
+    finalModel?: string;
+    errors?: string[];
+    structuredData?: unknown; 
   };
 };
 
@@ -78,11 +65,9 @@ export type MemoryRecord = {
   recommendation: Recommendation;
   score: number;
   storageUri?: string;
-  createdAt: string;
-  /** Embedding vector for semantic similarity */
   embedding?: number[];
-  /** Cosine similarity score when this memory was retrieved */
-  similarityScore?: number;
+  similarityScore?: number;   // ← ДОБАВИТЬ ЭТО
+  createdAt: string;
 };
 
 export type StorageReceipt = {
@@ -109,6 +94,5 @@ export type AnalysisResult = {
   receipt: StorageReceipt;
   memoryIndexReceipt?: StorageReceipt;
   onChainReceipt?: OnChainReceipt;
-  /** Which models were used for each step */
-  modelRouting?: Record<string, string>;
+  modelRouting?: Record<string, unknown>;
 };

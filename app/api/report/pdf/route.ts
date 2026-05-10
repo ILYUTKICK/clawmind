@@ -1,19 +1,5 @@
-// ---------------------------------------------------------------------------
-// ClawMind — PDF Report Export API
-// ---------------------------------------------------------------------------
-// Generates a downloadable PDF report for a given analysis.
-// Uses pdfkit for server-side PDF generation without a headless browser.
-// ---------------------------------------------------------------------------
-
 import { NextRequest, NextResponse } from "next/server";
 import PDFDocument from "pdfkit";
-
-// Simple QR code generator (using a text-based representation)
-// For production, use a real QR library — but for a hackathon demo,
-// we embed the explorer URL as a clickable link instead.
-function getExplorerUrl(txHash: string): string {
-  return `https://chainscan.0g.ai/tx/${txHash}`;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,10 +9,11 @@ export async function POST(request: NextRequest) {
         summary?: string;
         score?: number;
         recommendation?: string;
-        risks?: Array<{ title: string; severity: string; explanation: string }>;
+        risks?: { title: string; severity: string; explanation: string }[];
         opportunities?: string[];
         architecture?: string[];
         nextSteps?: string[];
+        evidence?: string[];
       };
       receipt?: {
         reportHash?: string;
@@ -42,254 +29,174 @@ export async function POST(request: NextRequest) {
       };
     };
 
-    if (!body.report || !body.task) {
+    const { task, report, receipt, onChainReceipt } = body;
+
+    if (!report || !task) {
       return NextResponse.json(
-        { error: "Missing report or task data" },
+        { error: "Missing required fields: task, report" },
         { status: 400 }
       );
     }
 
-    const { task, report, receipt, onChainReceipt } = body;
-
     // Create PDF document
     const doc = new PDFDocument({
       size: "A4",
-      margins: { top: 60, bottom: 60, left: 50, right: 50 },
+      margins: { top: 60, bottom: 60, left: 55, right: 55 },
       info: {
-        Title: `ClawMind Analysis Report — ${task.slice(0, 50)}`,
-        Author: "ClawMind Multi-Agent Pipeline",
-        Subject: "Web3 Risk Analysis Report",
-        Creator: "ClawMind v1.1.0",
+        Title: `ClawMind Analysis Report`,
+        Author: "ClawMind - AI-Powered Web3 Risk Analysis",
+        Subject: task,
       },
     });
 
-    // Collect PDF data in a buffer
+    // Collect PDF chunks into a buffer
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
-    // ─── Helper functions ───
-
-    const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-
-    function addHeader(text: string, size: number = 16) {
-      doc.moveDown(0.5);
-      doc.font("Helvetica-Bold").fontSize(size).fillColor("#1a1a2e").text(text);
+    // Helper: colored section heading
+    function sectionHeading(text: string) {
+      doc.moveDown(0.8);
+      doc
+        .fontSize(13)
+        .font("Helvetica-Bold")
+        .fillColor("#7c3aed")
+        .text(text.toUpperCase(), { underline: false });
       doc.moveDown(0.3);
-      // Underline
-      doc.strokeColor("#00d4ff").lineWidth(1.5)
+      doc
+        .strokeColor("#e5e7eb")
+        .lineWidth(0.5)
         .moveTo(doc.x, doc.y)
-        .lineTo(doc.x + pageWidth, doc.y)
+        .lineTo(doc.page.width - 55, doc.y)
         .stroke();
-      doc.moveDown(0.5);
+      doc.moveDown(0.4);
     }
 
-    function addText(text: string, size: number = 10, bold: boolean = false, color: string = "#333333") {
-      const font = bold ? "Helvetica-Bold" : "Helvetica";
-      doc.font(font).fontSize(size).fillColor(color).text(text, { lineGap: 3 });
+    // Helper: bullet item
+    function bulletItem(text: string, indent = 20) {
+      doc
+        .fontSize(10)
+        .font("Helvetica")
+        .fillColor("#374151")
+        .text(`  \u2022  ${text}`, doc.page.margins.left + indent, undefined, {
+          width: doc.page.width - doc.page.margins.left - doc.page.margins.right - indent,
+          lineGap: 2,
+        });
     }
 
-    function addBullet(text: string, indent: number = 20) {
-      const x = doc.x;
-      doc.font("Helvetica").fontSize(10).fillColor("#555555")
-        .text(`  \u2022  ${text}`, doc.x + indent, doc.y, { width: pageWidth - indent, lineGap: 2 });
-    }
+    // ---- COVER / HEADER ----
+    doc.rect(0, 0, doc.page.width, 120).fill("#1e1b4b");
+    doc.fontSize(24).font("Helvetica-Bold").fillColor("#ffffff").text("ClawMind", 55, 35);
+    doc.fontSize(11).font("Helvetica").fillColor("#c4b5fd").text("AI-Powered Web3 Risk Analysis Report", 55, 65);
+    doc.fontSize(9).fillColor("#a78bfa").text(new Date().toISOString(), 55, 85);
 
-    function checkPageBreak(needed: number = 100) {
-      if (doc.y + needed > doc.page.height - doc.page.margins.bottom) {
-        doc.addPage();
+    doc.y = 140;
+
+    // ---- TASK ----
+    sectionHeading("Analyzed Task");
+    doc.fontSize(10).font("Helvetica").fillColor("#1f2937").text(task, { lineGap: 2 });
+
+    // ---- SCORE & RECOMMENDATION ----
+    doc.moveDown(0.5);
+    const scoreColor = (report.score ?? 0) >= 70 ? "#059669" : (report.score ?? 0) >= 40 ? "#d97706" : "#dc2626";
+    const recColor = report.recommendation === "GO" ? "#059669" : report.recommendation === "NO_GO" ? "#dc2626" : "#d97706";
+
+    const boxY = doc.y;
+    doc.rect(55, boxY, 220, 45).fillAndStroke("#f9fafb", "#e5e7eb");
+    doc.fontSize(10).font("Helvetica-Bold").fillColor("#6b7280").text("SCORE", 70, boxY + 8);
+    doc.fontSize(18).font("Helvetica-Bold").fillColor(scoreColor).text(`${report.score ?? 0}/100`, 70, boxY + 22);
+
+    doc.rect(290, boxY, 220, 45).fillAndStroke("#f9fafb", "#e5e7eb");
+    doc.fontSize(10).font("Helvetica-Bold").fillColor("#6b7280").text("RECOMMENDATION", 305, boxY + 8);
+    doc.fontSize(16).font("Helvetica-Bold").fillColor(recColor).text(report.recommendation ?? "N/A", 305, boxY + 23);
+
+    doc.y = boxY + 60;
+
+    // ---- SUMMARY ----
+    sectionHeading("Summary");
+    doc.fontSize(10).font("Helvetica").fillColor("#1f2937").text(report.summary ?? "", { lineGap: 2 });
+
+    // ---- RISKS ----
+    if (report.risks && report.risks.length > 0) {
+      sectionHeading("Risk Map");
+      for (const risk of report.risks) {
+        const sevColor = risk.severity === "critical" ? "#dc2626" : risk.severity === "high" ? "#ea580c" : risk.severity === "medium" ? "#d97706" : "#059669";
+        doc.fontSize(10).font("Helvetica-Bold").fillColor("#1f2937").text(risk.title, { continued: true }).font("Helvetica").fillColor(sevColor).text(`  [${risk.severity.toUpperCase()}]`);
+        doc.fontSize(9).font("Helvetica").fillColor("#4b5563").text(risk.explanation, { lineGap: 1 });
+        doc.moveDown(0.3);
       }
     }
 
-    // ─── Page 1: Cover & Summary ───
-
-    // Logo/brand area
-    doc.font("Helvetica-Bold").fontSize(28).fillColor("#1a1a2e")
-      .text("ClawMind", { align: "center" });
-    doc.font("Helvetica").fontSize(11).fillColor("#666666")
-      .text("Audit-Grade Risk Reports for Web3 Protocols", { align: "center" });
-    doc.moveDown(0.5);
-
-    // Horizontal separator
-    doc.strokeColor("#00d4ff").lineWidth(2)
-      .moveTo(doc.page.margins.left, doc.y)
-      .lineTo(doc.page.width - doc.page.margins.right, doc.y)
-      .stroke();
-    doc.moveDown(1);
-
-    // Task
-    addHeader("Analyzed Task", 14);
-    addText(task, 11);
-
-    doc.moveDown(1);
-
-    // Score box
-    if (report.score !== undefined) {
-      const scoreColor = report.score >= 70 ? "#22c55e" : report.score >= 40 ? "#eab308" : "#ef4444";
-      doc.roundedRect(doc.page.margins.left, doc.y, pageWidth, 50, 8)
-        .fillAndStroke("#f8f9fa", scoreColor);
-
-      doc.font("Helvetica-Bold").fontSize(24).fillColor(scoreColor)
-        .text(`${report.score}/100`, doc.page.margins.left + 20, doc.y - 42, { continued: true });
-      doc.font("Helvetica").fontSize(14).fillColor("#333333")
-        .text(`   Recommendation: ${report.recommendation || "N/A"}`);
-      doc.y += 20;
+    // ---- OPPORTUNITIES ----
+    if (report.opportunities && report.opportunities.length > 0) {
+      sectionHeading("Opportunities");
+      for (const opp of report.opportunities) { bulletItem(opp); }
     }
 
-    doc.moveDown(1);
-
-    // Summary
-    if (report.summary) {
-      addHeader("Summary", 14);
-      addText(report.summary, 10);
+    // ---- ARCHITECTURE ----
+    if (report.architecture && report.architecture.length > 0) {
+      sectionHeading("Architecture");
+      for (const arch of report.architecture) { bulletItem(arch); }
     }
 
-    // ─── Risks ───
+    // ---- NEXT STEPS ----
+    if (report.nextSteps && report.nextSteps.length > 0) {
+      sectionHeading("Next Steps");
+      report.nextSteps.forEach((step, i) => {
+        doc.fontSize(10).font("Helvetica-Bold").fillColor("#7c3aed").text(`${i + 1}. `, doc.page.margins.left + 10, undefined, { continued: true }).font("Helvetica").fillColor("#374151").text(step, { lineGap: 2 });
+      });
+    }
 
-    if (report.risks && report.risks.length > 0) {
-      checkPageBreak(200);
-      addHeader("Risk Map", 14);
+    // ---- EVIDENCE LOG ----
+    if (report.evidence && report.evidence.length > 0) {
+      sectionHeading("Evidence Log");
+      for (const ev of report.evidence) { bulletItem(ev); }
+    }
 
-      for (const risk of report.risks) {
-        checkPageBreak(60);
-        const severityColors: Record<string, string> = {
-          critical: "#ef4444",
-          high: "#f97316",
-          medium: "#eab308",
-          low: "#22c55e",
-        };
-        const sevColor = severityColors[risk.severity?.toLowerCase()] || "#999999";
-
-        doc.font("Helvetica-Bold").fontSize(11).fillColor(sevColor)
-          .text(`[${(risk.severity || "UNKNOWN").toUpperCase()}] ${risk.title}`);
-        doc.font("Helvetica").fontSize(9.5).fillColor("#555555")
-          .text(risk.explanation, { indent: 20, lineGap: 2 });
+    // ---- INFRASTRUCTURE / RECEIPTS ----
+    if (receipt || onChainReceipt) {
+      sectionHeading("Infrastructure Receipts");
+      if (receipt) {
+        doc.fontSize(10).font("Helvetica-Bold").fillColor("#1f2937").text("0G Storage");
+        doc.fontSize(9).font("Helvetica").fillColor("#4b5563");
+        if (receipt.reportHash) doc.text(`  Report Hash: ${receipt.reportHash}`);
+        if (receipt.storageUri) doc.text(`  Storage URI: ${receipt.storageUri}`);
+        if (receipt.provider) doc.text(`  Provider: ${receipt.provider}`);
+        doc.moveDown(0.4);
+      }
+      if (onChainReceipt) {
+        doc.fontSize(10).font("Helvetica-Bold").fillColor("#1f2937").text("On-Chain Registration");
+        doc.fontSize(9).font("Helvetica").fillColor("#4b5563");
+        if (onChainReceipt.analysisId !== undefined) doc.text(`  Analysis ID: ${onChainReceipt.analysisId}`);
+        if (onChainReceipt.txHash) doc.text(`  TX Hash: ${onChainReceipt.txHash}`);
+        if (onChainReceipt.contractAddress) doc.text(`  Contract: ${onChainReceipt.contractAddress}`);
+        if (onChainReceipt.explorerTxUrl) doc.text(`  Explorer: ${onChainReceipt.explorerTxUrl}`);
+        if (onChainReceipt.provider) doc.text(`  Provider: ${onChainReceipt.provider}`);
         doc.moveDown(0.4);
       }
     }
 
-    // ─── Opportunities ───
-
-    if (report.opportunities && report.opportunities.length > 0) {
-      checkPageBreak(150);
-      addHeader("Opportunities", 14);
-      for (const opp of report.opportunities) {
-        addBullet(opp);
-      }
-    }
-
-    // ─── Architecture ───
-
-    if (report.architecture && report.architecture.length > 0) {
-      checkPageBreak(150);
-      addHeader("Architecture Recommendations", 14);
-      for (const arch of report.architecture) {
-        addBullet(arch);
-      }
-    }
-
-    // ─── Next Steps ───
-
-    if (report.nextSteps && report.nextSteps.length > 0) {
-      checkPageBreak(150);
-      addHeader("Next Steps", 14);
-      for (const step of report.nextSteps) {
-        addBullet(step);
-      }
-    }
-
-    // ─── On-Chain Proof & Integrity ───
-
-    checkPageBreak(200);
-    addHeader("On-Chain Proof & Integrity", 14);
-
-    if (receipt?.reportHash) {
-      addText("Report Hash:", 10, true);
-      doc.font("Courier").fontSize(8.5).fillColor("#333333")
-        .text(receipt.reportHash, { lineGap: 1 });
-      doc.moveDown(0.4);
-    }
-
-    if (receipt?.storageUri) {
-      addText("Storage URI:", 10, true);
-      doc.font("Courier").fontSize(8.5).fillColor("#0066cc")
-        .text(receipt.storageUri, { link: receipt.storageUri, underline: true });
-      doc.moveDown(0.4);
-    }
-
-    if (onChainReceipt?.provider === "0G_CHAIN") {
-      addText("On-Chain Registration:", 10, true);
-      doc.font("Helvetica").fontSize(9.5).fillColor("#333333");
-
-      if (onChainReceipt.txHash) {
-        const explorerUrl = onChainReceipt.explorerTxUrl || getExplorerUrl(onChainReceipt.txHash);
-        doc.text(`Transaction: `, { continued: true });
-        doc.fillColor("#0066cc").text(onChainReceipt.txHash.slice(0, 20) + "...", {
-          link: explorerUrl,
-          underline: true,
-        });
-      }
-
-      if (onChainReceipt.analysisId) {
-        doc.fillColor("#333333").text(`Analysis ID: ${onChainReceipt.analysisId}`);
-      }
-
-      if (onChainReceipt.contractAddress) {
-        doc.text(`Contract: ${onChainReceipt.contractAddress}`);
-      }
-
-      doc.moveDown(0.5);
-
-      // QR code placeholder — link to explorer
-      if (onChainReceipt.explorerTxUrl) {
-        doc.font("Helvetica").fontSize(9).fillColor("#666666")
-          .text("Verify on-chain: " + onChainReceipt.explorerTxUrl, {
-            link: onChainReceipt.explorerTxUrl,
-            underline: true,
-          });
-      }
-    } else {
-      addText("On-chain registration: Not available (configure 0G Chain for on-chain proof)", 9, false, "#999999");
-    }
-
-    // ─── Footer ───
-
+    // ---- FOOTER ----
     doc.moveDown(2);
-    doc.strokeColor("#dddddd").lineWidth(0.5)
-      .moveTo(doc.page.margins.left, doc.y)
-      .lineTo(doc.page.width - doc.page.margins.right, doc.y)
-      .stroke();
-    doc.moveDown(0.5);
-
-    doc.font("Helvetica").fontSize(8).fillColor("#999999")
-      .text(`Generated by ClawMind v1.1.0 | ${new Date().toISOString()}`, { align: "center" });
-    doc.text("Powered by 0G Compute, 0G Storage, and 0G Chain", { align: "center" });
+    doc.fontSize(7).font("Helvetica").fillColor("#9ca3af").text("Generated by ClawMind — AI-Powered Web3 Risk Analysis | Powered by 0G Compute + Storage + Chain", { align: "center" });
 
     // Finalize PDF
     doc.end();
 
-    // Wait for the document to finish writing to buffer
     const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
-      doc.on("end", () => {
-        resolve(Buffer.concat(chunks));
-      });
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
       doc.on("error", reject);
     });
 
-    // Return PDF
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="clawmind-report-${Date.now()}.pdf"`,
-        "Cache-Control": "no-store",
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("[PDF] Generation failed:", message);
-    return NextResponse.json(
-      { error: "Failed to generate PDF", details: message },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Unknown PDF generation error";
+    console.error("[PDF Route] Generation failed:", message);
+    return NextResponse.json({ error: "PDF generation failed", details: message }, { status: 500 });
   }
 }
