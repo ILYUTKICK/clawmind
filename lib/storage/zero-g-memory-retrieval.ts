@@ -4,7 +4,10 @@ import { getNetworkConfig } from "@/lib/storage/zero-g-config";
 
 type StoredClawMindMemoryIndex = {
   kind: "CLAWMIND_MEMORY_INDEX";
-  version: string;
+  version?: string;
+  schemaVersion?: string;
+  snapshotVersion?: number;
+  previousSnapshotUri?: string | null;
   memories: MemoryRecord[];
   createdAt: string;
 };
@@ -43,9 +46,12 @@ function isStoredClawMindMemoryIndex(value: unknown): value is StoredClawMindMem
 
   const candidate = value as Partial<StoredClawMindMemoryIndex>;
 
+  // Accept both old format (version) and new format (schemaVersion)
+  const hasValidVersion = typeof candidate.version === "string" || typeof candidate.schemaVersion === "string";
+
   return (
     candidate.kind === "CLAWMIND_MEMORY_INDEX" &&
-    typeof candidate.version === "string" &&
+    hasValidVersion &&
     typeof candidate.createdAt === "string" &&
     Array.isArray(candidate.memories) &&
     candidate.memories.every(isMemoryRecord)
