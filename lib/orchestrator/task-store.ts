@@ -1,11 +1,12 @@
 // ---------------------------------------------------------------------------
-// ClawMind — Task Store for Async Pipeline (Vercel KV + in-memory fallback)
+// ClawMind — Task Store for Async Pipeline (Redis via ioredis + in-memory fallback)
 // ---------------------------------------------------------------------------
-// On Vercel: uses Vercel KV (Redis) so task state persists across serverless
-// function invocations. On local dev: falls back to an in-memory Map.
-// If KV env vars are missing, gracefully falls back to in-memory.
+// On Vercel: uses Redis (KV_REDIS_URL) so task state persists across
+// serverless function invocations. On local dev: falls back to in-memory Map.
+// Uses ioredis which works with direct Redis URLs (redis://default:xxx@host:port).
 // ---------------------------------------------------------------------------
 
+import Redis from "ioredis";
 import { AgentStep, AnalysisResult } from "@/lib/types";
 
 export type TaskState = {
@@ -21,57 +22,59 @@ export type TaskState = {
 };
 
 // ---------------------------------------------------------------------------
-// KV helpers — try to use Vercel KV, fall back to in-memory Map
+// Redis client — lazy singleton
 // ---------------------------------------------------------------------------
 
-let kvAvailable = false;
-let kvChecked = false;
+let redisClient: Redis | null = null;
+let redisChecked = false;
 
-async function getKv() {
-  // If we already checked and KV is not available, skip immediately
-  if (kvChecked && !kvAvailable) return null;
-  // If we already checked and KV is available, import and return
-  if (kvChecked && kvAvailable) {
-    try {
-      const { kv } = await import("@vercel/kv");
-      return kv;
-    } catch {
-      kvAvailable = false;
-      return null;
-    }
+function getRedisUrl(): string {
+  return (
+    process.env.KV_REDIS_URL ||
+    process.env.REDIS_URL ||
+    ""
+  );
+}
+
+async function getRedis(): Promise<Redis | null> {
+  if (redisChecked) return redisClient;
+
+  const redisUrl = getRedisUrl();
+  if (!redisUrl) {
+    console.warn("[TaskStore] No KV_REDIS_URL / REDIS_URL — using in-memory fallback.");
+    redisChecked = true;
+    return null;
   }
 
-  // First-time check: try to import and verify env vars exist
   try {
-    const { kv } = await import("@vercel/kv");
-    // @vercel/kv throws if KV_REST_API_URL / KV_REST_API_TOKEN are missing.
-    // Check for env vars BEFORE calling any kv method to avoid runtime errors.
-    const hasUrl = !!process.env.KV_REST_API_URL;
-    const hasToken = !!process.env.KV_REST_API_TOKEN;
+    const client = new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      connectTimeout: 5000,
+      lazyConnect: true,
+      // Don't retry forever on serverless — fail fast and fall back
+      retryStrategy(times) {
+        if (times > 3) return null; // stop retrying
+        return Math.min(times * 200, 2000);
+      },
+    });
 
-    if (!hasUrl || !hasToken) {
-      console.warn(
-        "[TaskStore] KV_REST_API_URL or KV_REST_API_TOKEN not set — using in-memory fallback."
-      );
-      console.warn(
-        "[TaskStore] To fix: add KV integration in Vercel dashboard or set env vars manually."
-      );
-      kvAvailable = false;
-      kvChecked = true;
-      return null;
-    }
-
-    kvAvailable = true;
-    kvChecked = true;
-    return kv;
-  } catch {
-    kvAvailable = false;
-    kvChecked = true;
+    await client.ping();
+    console.log("[TaskStore] Connected via ioredis (KV_REDIS_URL)");
+    redisClient = client;
+    redisChecked = true;
+    return redisClient;
+  } catch (err) {
+    console.warn("[TaskStore] ioredis connection failed:", err);
+    console.warn("[TaskStore] Using in-memory fallback — task state will NOT persist across serverless invocations.");
+    redisChecked = true;
     return null;
   }
 }
 
+// ---------------------------------------------------------------------------
 // In-memory fallback for local development
+// ---------------------------------------------------------------------------
+
 const memoryStore = new Map<string, TaskState>();
 const MAX_STORED_TASKS = 20;
 const TASK_TTL_SECONDS = 600; // 10 minutes
@@ -108,14 +111,12 @@ export async function createTask(taskId: string, task: string): Promise<TaskStat
     updatedAt: now,
   };
 
-  const kv = await getKv();
-  if (kv) {
+  const redis = await getRedis();
+  if (redis) {
     try {
-      await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
-        ex: TASK_TTL_SECONDS,
-      });
+      await redis.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), "EX", TASK_TTL_SECONDS);
     } catch (err) {
-      console.warn("[TaskStore] KV set failed, using in-memory:", err);
+      console.warn("[TaskStore] Redis set failed, using in-memory:", err);
       memoryStore.set(taskId, state);
       pruneOldTasks();
     }
@@ -139,14 +140,12 @@ export async function updateTaskStep(
   state.steps = [...steps];
   state.updatedAt = new Date().toISOString();
 
-  const kv = await getKv();
-  if (kv) {
+  const redis = await getRedis();
+  if (redis) {
     try {
-      await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
-        ex: TASK_TTL_SECONDS,
-      });
+      await redis.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), "EX", TASK_TTL_SECONDS);
     } catch (err) {
-      console.warn("[TaskStore] KV set failed, using in-memory:", err);
+      console.warn("[TaskStore] Redis set failed, using in-memory:", err);
       memoryStore.set(taskId, state);
     }
   } else {
@@ -164,14 +163,12 @@ export async function completeTask(taskId: string, result: AnalysisResult): Prom
   state.steps = result.steps;
   state.updatedAt = new Date().toISOString();
 
-  const kv = await getKv();
-  if (kv) {
+  const redis = await getRedis();
+  if (redis) {
     try {
-      await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
-        ex: TASK_TTL_SECONDS,
-      });
+      await redis.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), "EX", TASK_TTL_SECONDS);
     } catch (err) {
-      console.warn("[TaskStore] KV set failed, using in-memory:", err);
+      console.warn("[TaskStore] Redis set failed, using in-memory:", err);
       memoryStore.set(taskId, state);
     }
   } else {
@@ -188,14 +185,12 @@ export async function failTask(taskId: string, error: string): Promise<void> {
   state.error = error;
   state.updatedAt = new Date().toISOString();
 
-  const kv = await getKv();
-  if (kv) {
+  const redis = await getRedis();
+  if (redis) {
     try {
-      await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
-        ex: TASK_TTL_SECONDS,
-      });
+      await redis.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), "EX", TASK_TTL_SECONDS);
     } catch (err) {
-      console.warn("[TaskStore] KV set failed, using in-memory:", err);
+      console.warn("[TaskStore] Redis set failed, using in-memory:", err);
       memoryStore.set(taskId, state);
     }
   } else {
@@ -204,21 +199,18 @@ export async function failTask(taskId: string, error: string): Promise<void> {
 }
 
 export async function getTask(taskId: string): Promise<TaskState | undefined> {
-  const kv = await getKv();
-  if (kv) {
+  const redis = await getRedis();
+  if (redis) {
     try {
-      const raw = await kv.get<string>(`${KV_KEY_PREFIX}${taskId}`);
+      const raw = await redis.get(`${KV_KEY_PREFIX}${taskId}`);
       if (!raw) return undefined;
       try {
-        if (typeof raw === "string") {
-          return JSON.parse(raw) as TaskState;
-        }
-        return raw as unknown as TaskState;
+        return JSON.parse(raw) as TaskState;
       } catch {
         return undefined;
       }
     } catch (err) {
-      console.warn("[TaskStore] KV get failed, using in-memory:", err);
+      console.warn("[TaskStore] Redis get failed, using in-memory:", err);
       return memoryStore.get(taskId);
     }
   }
@@ -227,8 +219,10 @@ export async function getTask(taskId: string): Promise<TaskState | undefined> {
 }
 
 export async function getLatestTask(): Promise<TaskState | undefined> {
-  const kv = await getKv();
-  if (kv) {
+  const redis = await getRedis();
+  if (redis) {
+    // Redis doesn't support listing by prefix easily without SCAN
+    // Return undefined — the client always polls by taskId anyway
     return undefined;
   }
 
