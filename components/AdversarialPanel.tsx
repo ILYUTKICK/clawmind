@@ -58,10 +58,10 @@ const CHALLENGED_AGENTS: {
 /* -------------------------------------------------------------------------- */
 
 /** Extract the first 1–2 sentences as a "key claim" summary. */
-function extractClaim(text: string, maxLen = 140): string {
+function extractClaim(text: string, maxLen = 180): string {
   if (!text) return "No claim produced";
-  // Try to grab the first meaningful sentence
   const cleaned = text.replace(/\n+/g, " ").trim();
+  // Try to grab the first meaningful sentence (up to maxLen)
   const firstPeriod = cleaned.indexOf(". ");
   if (firstPeriod > 0 && firstPeriod < maxLen) {
     return cleaned.slice(0, firstPeriod + 1);
@@ -72,8 +72,9 @@ function extractClaim(text: string, maxLen = 140): string {
 
 /**
  * Parse the critic output into per-agent challenges.
- * Heuristic: split by agent name headings or just return the whole thing
- * as a general challenge. We try structured extraction first, then fall back.
+ * Strategy: Split the text by agent name headings, then extract
+ * the content following each heading. Multiple fallback strategies
+ * for different LLM output formats.
  */
 function extractChallenges(
   criticOutput: string | undefined,
@@ -83,36 +84,73 @@ function extractChallenges(
 
   if (!criticOutput) return challenges;
 
-  // Strategy 1: look for patterns like "Planner:" or "**Planner**" or "- Planner"
-  for (const agentName of agentNames) {
-    const label = CHALLENGED_AGENTS.find((a) => a.name === agentName)?.label ?? agentName;
-    // Try multiple delimiters
+  // Build a list of label variants for matching
+  const agentLabels = agentNames.map((name) => {
+    const label = CHALLENGED_AGENTS.find((a) => a.name === name)?.label ?? name;
+    return { name, label, variants: [label, name] };
+  });
+
+  // Strategy 1: Try to find sections delimited by agent names
+  // Works with formats like:
+  //   "**Planner**: ..." or "### Planner" or "1. Planner:" or "Planner - ..."
+  for (const { name, label } of agentLabels) {
+    // Try multiple regex patterns to find the section for this agent
     const patterns = [
-      new RegExp(`(?:\\*\\*|##?\\s?)${label}[:\\s](.*?)(?=(?:\\*\\*|##?\\s?)(?:Planner|Researcher|Risk|Architect)|$)`, "is"),
-      new RegExp(`[-•]\\s*${label}[:\\s-]*(.*?)(?=[-•]\\s*(?:Planner|Researcher|Risk|Architect)|$)`, "is"),
-      new RegExp(`${label}[:\\s]+(.*?)(?=(?:Planner|Researcher|Risk|Architect)[:\\s]|$)`, "is"),
+      // **Planner** or **Planner:** or **Planner**:
+      new RegExp(`\\*\\*${label}[:\\s]*\\*\\*[:\\s]*(.*?)(?=\\*\\*(?:Planner|Researcher|Risk Agent|Risk|Architect)\\s*\\*\\*|$)`, "is"),
+      // ### Planner or ## Planner
+      new RegExp(`#{1,3}\\s*${label}[:\\s]*(.*?)(?=#{1,3}\\s*(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
+      // Planner: or Planner -
+      new RegExp(`(?:^|\\n)\\s*${label}[:\\s-]+(.*?)(?=(?:^|\\n)\\s*(?:Planner|Researcher|Risk Agent|Risk|Architect)[:\\s-]|$)`, "is"),
+      // Numbered list: 1. **Planner**: or 1. Planner:
+      new RegExp(`\\d+\\.\\s*\\*{0,2}${label}\\*{0,2}[:\\s]*(.*?)(?=\\d+\\.\\s*\\*{0,2}(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
+      // "Critique of Planner:" or "vs Planner:"
+      new RegExp(`(?:Critique|Review|Challenge|vs)[\\s]+(?:of|on|against)?[\\s]*${label}[:\\s]*(.*?)(?=(?:Critique|Review|Challenge|vs)[\\s]+(?:of|on|against)?[\\s]*(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
     ];
 
     let found = false;
     for (const pat of patterns) {
       const m = criticOutput.match(pat);
-      if (m && m[1] && m[1].trim().length > 5) {
-        challenges.set(agentName, m[1].trim().slice(0, 200));
+      if (m && m[1] && m[1].trim().length > 10) {
+        const text = m[1].trim();
+        challenges.set(name, text.length > 220 ? text.slice(0, 220).trimEnd() + "…" : text);
         found = true;
         break;
       }
     }
-    if (!found) {
-      // No structured section found for this agent — we'll use the whole critic output
-      // as a general challenge (only set once, for the first missing agent)
-    }
   }
 
-  // If NO structured challenges found, distribute the whole output as a general challenge
-  if (challenges.size === 0) {
-    const summary = extractClaim(criticOutput, 220);
-    for (const name of agentNames) {
-      challenges.set(name, summary);
+  // Strategy 2: If some agents were found but not all, try splitting by numbered sections
+  if (challenges.size > 0 && challenges.size < agentLabels.length) {
+    // Already partially found — leave as is
+  } else if (challenges.size === 0) {
+    // Strategy 3: Split the whole output into chunks and assign to agents
+    const lines = criticOutput.split(/\n+/).filter((l) => l.trim().length > 5);
+
+    if (lines.length >= agentLabels.length) {
+      // Try to match each line to an agent by looking for agent names
+      for (const { name, label } of agentLabels) {
+        for (const line of lines) {
+          if (
+            line.toLowerCase().includes(label.toLowerCase()) &&
+            !challenges.has(name)
+          ) {
+            const text = line.replace(/^[*\d.\-#\s]+/, "").trim();
+            if (text.length > 10) {
+              challenges.set(name, text.length > 220 ? text.slice(0, 220).trimEnd() + "…" : text);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Strategy 4: If still nothing, distribute the whole output as a general challenge
+    if (challenges.size === 0) {
+      const summary = extractClaim(criticOutput, 280);
+      for (const name of agentNames) {
+        challenges.set(name, summary);
+      }
     }
   }
 
@@ -120,29 +158,48 @@ function extractChallenges(
 }
 
 /**
- * Parse the final_agent output for reconciliation/resolution text.
+ * Parse the final_agent output for reconciliation/resolution text per agent.
  */
-function extractResolution(finalOutput: string | undefined): string {
-  if (!finalOutput) return "Pending final synthesis";
-  const cleaned = finalOutput.replace(/\n+/g, " ").trim();
-  if (cleaned.length <= 300) return cleaned;
-  return cleaned.slice(0, 300).trimEnd() + "…";
-}
-
-/** Build a short resolution label per agent from the final agent output. */
 function extractPerAgentResolution(
   finalOutput: string | undefined,
   agentName: string
 ): string | null {
   if (!finalOutput) return null;
   const label = CHALLENGED_AGENTS.find((a) => a.name === agentName)?.label ?? agentName;
-  const pat = new RegExp(`${label}[:\\s-]+(.*?)(?=(?:Planner|Researcher|Risk|Architect)[:\\s-]|$)`, "is");
-  const m = finalOutput.match(pat);
-  if (m && m[1] && m[1].trim().length > 5) {
-    const text = m[1].trim();
-    return text.length > 140 ? text.slice(0, 140).trimEnd() + "…" : text;
+
+  // Try multiple patterns
+  const patterns = [
+    // **Planner** or **Planner:** followed by content
+    new RegExp(`\\*\\*${label}[:\\s]*\\*\\*[:\\s]*(.*?)(?=\\*\\*(?:Planner|Researcher|Risk Agent|Risk|Architect)\\s*\\*\\*|$)`, "is"),
+    // ### Planner or ## Planner
+    new RegExp(`#{1,3}\\s*${label}[:\\s]*(.*?)(?=#{1,3}\\s*(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
+    // Planner: or Planner -
+    new RegExp(`${label}[:\\s-]+(.*?)(?=(?:Planner|Researcher|Risk Agent|Risk|Architect)[:\\s-]|$)`, "is"),
+    // Numbered list: 1. **Planner**:
+    new RegExp(`\\d+\\.\\s*\\*{0,2}${label}\\*{0,2}[:\\s]*(.*?)(?=\\d+\\.\\s*\\*{0,2}(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
+    // "Reconciliation for Planner:" or "Resolution - Planner:"
+    new RegExp(`(?:Reconciliation|Resolution|Addressed|Resolved)[\\s]+(?:for|on|against|with)?[\\s]*${label}[:\\s]*(.*?)(?=(?:Reconciliation|Resolution|Addressed|Resolved)[\\s]+(?:for|on|against|with)?[\\s]*(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
+  ];
+
+  for (const pat of patterns) {
+    const m = finalOutput.match(pat);
+    if (m && m[1] && m[1].trim().length > 10) {
+      const text = m[1].trim();
+      return text.length > 180 ? text.slice(0, 180).trimEnd() + "…" : text;
+    }
   }
+
   return null;
+}
+
+/**
+ * Extract a general resolution summary from the final agent output.
+ */
+function extractResolution(finalOutput: string | undefined): string {
+  if (!finalOutput) return "Pending final synthesis";
+  const cleaned = finalOutput.replace(/\n+/g, " ").trim();
+  if (cleaned.length <= 300) return cleaned;
+  return cleaned.slice(0, 300).trimEnd() + "…";
 }
 
 /* -------------------------------------------------------------------------- */
@@ -539,16 +596,23 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
                   );
                 }
 
+                // Build resolution text: per-agent extraction > general summary > fallback
+                let resolutionText: string;
+                if (perAgentResolution && perAgentResolution.length > 10) {
+                  resolutionText = perAgentResolution;
+                } else if (challengeExists) {
+                  // Fallback: use the general final resolution as context
+                  resolutionText = `Challenge addressed in final synthesis. ${finalResolution.slice(0, 160)}`;
+                } else {
+                  resolutionText = "Incorporated into final synthesis";
+                }
+
                 return (
                   <ResolutionRow
                     key={agent.name}
                     agentLabel={agent.label}
                     agentIcon={agent.icon}
-                    resolution={
-                      perAgentResolution ??
-                      challenges.get(agent.name) ??
-                      "Incorporated into final synthesis"
-                    }
+                    resolution={resolutionText}
                     accentBorder={agent.accentBorder}
                   />
                 );

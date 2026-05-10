@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 // On Vercel: uses Vercel KV (Redis) so task state persists across serverless
 // function invocations. On local dev: falls back to an in-memory Map.
+// If KV env vars are missing, gracefully falls back to in-memory.
 // ---------------------------------------------------------------------------
 
 import { AgentStep, AnalysisResult } from "@/lib/types";
@@ -24,14 +25,48 @@ export type TaskState = {
 // ---------------------------------------------------------------------------
 
 let kvAvailable = false;
+let kvChecked = false;
 
 async function getKv() {
+  // If we already checked and KV is not available, skip immediately
+  if (kvChecked && !kvAvailable) return null;
+  // If we already checked and KV is available, import and return
+  if (kvChecked && kvAvailable) {
+    try {
+      const { kv } = await import("@vercel/kv");
+      return kv;
+    } catch {
+      kvAvailable = false;
+      return null;
+    }
+  }
+
+  // First-time check: try to import and verify env vars exist
   try {
     const { kv } = await import("@vercel/kv");
+    // @vercel/kv throws if KV_REST_API_URL / KV_REST_API_TOKEN are missing.
+    // Check for env vars BEFORE calling any kv method to avoid runtime errors.
+    const hasUrl = !!process.env.KV_REST_API_URL;
+    const hasToken = !!process.env.KV_REST_API_TOKEN;
+
+    if (!hasUrl || !hasToken) {
+      console.warn(
+        "[TaskStore] KV_REST_API_URL or KV_REST_API_TOKEN not set — using in-memory fallback."
+      );
+      console.warn(
+        "[TaskStore] To fix: add KV integration in Vercel dashboard or set env vars manually."
+      );
+      kvAvailable = false;
+      kvChecked = true;
+      return null;
+    }
+
     kvAvailable = true;
+    kvChecked = true;
     return kv;
   } catch {
     kvAvailable = false;
+    kvChecked = true;
     return null;
   }
 }
@@ -75,9 +110,15 @@ export async function createTask(taskId: string, task: string): Promise<TaskStat
 
   const kv = await getKv();
   if (kv) {
-    await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
-      ex: TASK_TTL_SECONDS,
-    });
+    try {
+      await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
+        ex: TASK_TTL_SECONDS,
+      });
+    } catch (err) {
+      console.warn("[TaskStore] KV set failed, using in-memory:", err);
+      memoryStore.set(taskId, state);
+      pruneOldTasks();
+    }
   } else {
     memoryStore.set(taskId, state);
     pruneOldTasks();
@@ -100,9 +141,14 @@ export async function updateTaskStep(
 
   const kv = await getKv();
   if (kv) {
-    await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
-      ex: TASK_TTL_SECONDS,
-    });
+    try {
+      await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
+        ex: TASK_TTL_SECONDS,
+      });
+    } catch (err) {
+      console.warn("[TaskStore] KV set failed, using in-memory:", err);
+      memoryStore.set(taskId, state);
+    }
   } else {
     memoryStore.set(taskId, state);
   }
@@ -120,9 +166,14 @@ export async function completeTask(taskId: string, result: AnalysisResult): Prom
 
   const kv = await getKv();
   if (kv) {
-    await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
-      ex: TASK_TTL_SECONDS,
-    });
+    try {
+      await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
+        ex: TASK_TTL_SECONDS,
+      });
+    } catch (err) {
+      console.warn("[TaskStore] KV set failed, using in-memory:", err);
+      memoryStore.set(taskId, state);
+    }
   } else {
     memoryStore.set(taskId, state);
   }
@@ -139,9 +190,14 @@ export async function failTask(taskId: string, error: string): Promise<void> {
 
   const kv = await getKv();
   if (kv) {
-    await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
-      ex: TASK_TTL_SECONDS,
-    });
+    try {
+      await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
+        ex: TASK_TTL_SECONDS,
+      });
+    } catch (err) {
+      console.warn("[TaskStore] KV set failed, using in-memory:", err);
+      memoryStore.set(taskId, state);
+    }
   } else {
     memoryStore.set(taskId, state);
   }
@@ -150,16 +206,20 @@ export async function failTask(taskId: string, error: string): Promise<void> {
 export async function getTask(taskId: string): Promise<TaskState | undefined> {
   const kv = await getKv();
   if (kv) {
-    const raw = await kv.get<string>(`${KV_KEY_PREFIX}${taskId}`);
-    if (!raw) return undefined;
     try {
-      // KV might return a parsed object or a string depending on how it was stored
-      if (typeof raw === "string") {
-        return JSON.parse(raw) as TaskState;
+      const raw = await kv.get<string>(`${KV_KEY_PREFIX}${taskId}`);
+      if (!raw) return undefined;
+      try {
+        if (typeof raw === "string") {
+          return JSON.parse(raw) as TaskState;
+        }
+        return raw as unknown as TaskState;
+      } catch {
+        return undefined;
       }
-      return raw as unknown as TaskState;
-    } catch {
-      return undefined;
+    } catch (err) {
+      console.warn("[TaskStore] KV get failed, using in-memory:", err);
+      return memoryStore.get(taskId);
     }
   }
 
@@ -169,8 +229,6 @@ export async function getTask(taskId: string): Promise<TaskState | undefined> {
 export async function getLatestTask(): Promise<TaskState | undefined> {
   const kv = await getKv();
   if (kv) {
-    // KV doesn't support listing by prefix easily without scan
-    // Return undefined — the client always polls by taskId anyway
     return undefined;
   }
 
