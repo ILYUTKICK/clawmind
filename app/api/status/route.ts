@@ -56,7 +56,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const taskId = request.nextUrl.searchParams.get("taskId");
 
     if (taskId) {
-      return handleTaskPoll(taskId);
+      return await handleTaskPoll(taskId);
     }
 
     // Otherwise return infrastructure status
@@ -73,8 +73,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-function handleTaskPoll(taskId: string): NextResponse {
-  const task = getTask(taskId);
+async function handleTaskPoll(taskId: string): Promise<NextResponse> {
+  const task = await getTask(taskId);
 
   if (!task) {
     return NextResponse.json(

@@ -28,32 +28,30 @@ export async function POST(request: NextRequest) {
     const task = body.task.trim();
     const taskId = crypto.randomUUID();
 
-    // Create task in store
-    createTask(taskId, task);
+    // Create task in store (KV or in-memory)
+    await createTask(taskId, task);
 
     // Start pipeline in background — do NOT await it!
-    // The pipeline will update taskStore as it progresses.
-    const pipelinePromise = runAnalysis(task, (currentStep, steps) => {
-      updateTaskStep(taskId, currentStep, steps);
-    })
-      .then((result) => {
-        completeTask(taskId, result);
-      })
-      .catch((error) => {
+    const pipelinePromise = (async () => {
+      try {
+        const result = await runAnalysis(task, async (currentStep, steps) => {
+          await updateTaskStep(taskId, currentStep, steps);
+        });
+        await completeTask(taskId, result);
+      } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unknown pipeline error";
         console.error("[Analyze] Pipeline failed:", message);
-        failTask(taskId, message);
-      });
+        await failTask(taskId, message);
+      }
+    })();
 
     // On Vercel, use waitUntil to keep the function alive
-    // On local dev, the event loop keeps it running as long as there are pending promises
     try {
       const { waitUntil } = await import("@vercel/functions");
       waitUntil(pipelinePromise);
     } catch {
       // Not on Vercel — the promise still runs in the background on Node.js
-      // because the server keeps the event loop alive
       pipelinePromise.catch(() => {
         // Prevent unhandled rejection
       });

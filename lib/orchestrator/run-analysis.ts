@@ -45,7 +45,7 @@ function failStep(step: AgentStep, error: string): AgentStep {
 }
 
 // Progress callback type — called after each pipeline step
-export type ProgressCallback = (currentStep: string, steps: AgentStep[]) => void;
+export type ProgressCallback = (currentStep: string, steps: AgentStep[]) => void | Promise<void>;
 
 export async function runAnalysis(
   task: string,
@@ -110,10 +110,6 @@ export async function runAnalysis(
   // ============================================================
   // Steps 4+5: Risk Agent + Architect Agent IN PARALLEL
   // ============================================================
-  // These two agents are independent — Risk analyzes research output,
-  // Architect proposes architecture based on research + risk context.
-  // We run them in parallel and the Critic will get both outputs.
-
   const riskStep = createRunningStep("risk_agent", "Risk Agent", task);
   const riskIdx = steps.length;
   pushStep(riskStep, "risk_agent+architect");
@@ -122,18 +118,16 @@ export async function runAnalysis(
   const architectIdx = steps.length;
   pushStep(architectStep, "risk_agent+architect");
 
-  // Run both agents concurrently
   const [riskResult, architectResult] = await Promise.all([
     runRiskAgent(task, researchOutput, memoryContext)
       .then((output) => ({ output, error: null as string | null }))
       .catch((err) => ({ output: null, error: err instanceof Error ? err.message : "Risk agent failed" })),
 
-    runArchitectAgent(task, researchOutput, "")  // architect runs with research only (no risk dependency)
+    runArchitectAgent(task, researchOutput, "")
       .then((output) => ({ output, error: null as string | null }))
       .catch((err) => ({ output: null, error: err instanceof Error ? err.message : "Architect agent failed" })),
   ]);
 
-  // Update steps with results
   if (riskResult.output) {
     updateStep(riskIdx, completeStep(riskStep, riskResult.output), "critic");
   } else {

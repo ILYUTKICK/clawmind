@@ -1,3 +1,10 @@
+// ---------------------------------------------------------------------------
+// ClawMind — Task Store for Async Pipeline (Vercel KV + in-memory fallback)
+// ---------------------------------------------------------------------------
+// On Vercel: uses Vercel KV (Redis) so task state persists across serverless
+// function invocations. On local dev: falls back to an in-memory Map.
+// ---------------------------------------------------------------------------
+
 import { AgentStep, AnalysisResult } from "@/lib/types";
 
 export type TaskState = {
@@ -12,63 +19,164 @@ export type TaskState = {
   updatedAt: string;
 };
 
-const taskStore = new Map<string, TaskState>();
-const MAX_STORED_TASKS = 20;
+// ---------------------------------------------------------------------------
+// KV helpers — try to use Vercel KV, fall back to in-memory Map
+// ---------------------------------------------------------------------------
 
-function pruneOldTasks() {
-  if (taskStore.size <= MAX_STORED_TASKS) return;
-  const entries = [...taskStore.entries()].sort(
-    (a, b) => new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime()
-  );
-  const toDelete = entries.slice(0, entries.length - MAX_STORED_TASKS);
-  for (const [key] of toDelete) taskStore.delete(key);
+let kvAvailable = false;
+
+async function getKv() {
+  try {
+    const { kv } = await import("@vercel/kv");
+    kvAvailable = true;
+    return kv;
+  } catch {
+    kvAvailable = false;
+    return null;
+  }
 }
 
-export function createTask(taskId: string, task: string): TaskState {
+// In-memory fallback for local development
+const memoryStore = new Map<string, TaskState>();
+const MAX_STORED_TASKS = 20;
+const TASK_TTL_SECONDS = 600; // 10 minutes
+
+function pruneOldTasks() {
+  if (memoryStore.size <= MAX_STORED_TASKS) return;
+  const entries = [...memoryStore.entries()].sort(
+    (a, b) =>
+      new Date(a[1].createdAt).getTime() - new Date(b[1].createdAt).getTime()
+  );
+  const toDelete = entries.slice(0, entries.length - MAX_STORED_TASKS);
+  for (const [key] of toDelete) {
+    memoryStore.delete(key);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+const KV_KEY_PREFIX = "clawmind:task:";
+
+export async function createTask(taskId: string, task: string): Promise<TaskState> {
   const now = new Date().toISOString();
   const state: TaskState = {
-    taskId, task, status: "running", currentStep: "initializing",
-    steps: [], result: null, error: null, createdAt: now, updatedAt: now,
+    taskId,
+    task,
+    status: "running",
+    currentStep: "initializing",
+    steps: [],
+    result: null,
+    error: null,
+    createdAt: now,
+    updatedAt: now,
   };
-  taskStore.set(taskId, state);
-  pruneOldTasks();
+
+  const kv = await getKv();
+  if (kv) {
+    await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
+      ex: TASK_TTL_SECONDS,
+    });
+  } else {
+    memoryStore.set(taskId, state);
+    pruneOldTasks();
+  }
+
   return state;
 }
 
-export function updateTaskStep(taskId: string, currentStep: string, steps: AgentStep[]): void {
-  const state = taskStore.get(taskId);
+export async function updateTaskStep(
+  taskId: string,
+  currentStep: string,
+  steps: AgentStep[]
+): Promise<void> {
+  const state = await getTask(taskId);
   if (!state) return;
+
   state.currentStep = currentStep;
   state.steps = [...steps];
   state.updatedAt = new Date().toISOString();
+
+  const kv = await getKv();
+  if (kv) {
+    await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
+      ex: TASK_TTL_SECONDS,
+    });
+  } else {
+    memoryStore.set(taskId, state);
+  }
 }
 
-export function completeTask(taskId: string, result: AnalysisResult): void {
-  const state = taskStore.get(taskId);
+export async function completeTask(taskId: string, result: AnalysisResult): Promise<void> {
+  const state = await getTask(taskId);
   if (!state) return;
+
   state.status = "completed";
   state.currentStep = "completed";
   state.result = result;
   state.steps = result.steps;
   state.updatedAt = new Date().toISOString();
+
+  const kv = await getKv();
+  if (kv) {
+    await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
+      ex: TASK_TTL_SECONDS,
+    });
+  } else {
+    memoryStore.set(taskId, state);
+  }
 }
 
-export function failTask(taskId: string, error: string): void {
-  const state = taskStore.get(taskId);
+export async function failTask(taskId: string, error: string): Promise<void> {
+  const state = await getTask(taskId);
   if (!state) return;
+
   state.status = "failed";
   state.currentStep = "failed";
   state.error = error;
   state.updatedAt = new Date().toISOString();
+
+  const kv = await getKv();
+  if (kv) {
+    await kv.set(`${KV_KEY_PREFIX}${taskId}`, JSON.stringify(state), {
+      ex: TASK_TTL_SECONDS,
+    });
+  } else {
+    memoryStore.set(taskId, state);
+  }
 }
 
-export function getTask(taskId: string): TaskState | undefined {
-  return taskStore.get(taskId);
+export async function getTask(taskId: string): Promise<TaskState | undefined> {
+  const kv = await getKv();
+  if (kv) {
+    const raw = await kv.get<string>(`${KV_KEY_PREFIX}${taskId}`);
+    if (!raw) return undefined;
+    try {
+      // KV might return a parsed object or a string depending on how it was stored
+      if (typeof raw === "string") {
+        return JSON.parse(raw) as TaskState;
+      }
+      return raw as unknown as TaskState;
+    } catch {
+      return undefined;
+    }
+  }
+
+  return memoryStore.get(taskId);
 }
 
-export function getLatestTask(): TaskState | undefined {
-  const entries = [...taskStore.values()].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+export async function getLatestTask(): Promise<TaskState | undefined> {
+  const kv = await getKv();
+  if (kv) {
+    // KV doesn't support listing by prefix easily without scan
+    // Return undefined — the client always polls by taskId anyway
+    return undefined;
+  }
+
+  const entries = [...memoryStore.values()].sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
   return entries[0];
 }
