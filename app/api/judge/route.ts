@@ -208,11 +208,12 @@ async function getRecentAnalysesFromChain(
     );
 
     const limit = Math.min(count, 10);
-    const startId = count; // analysisCount is 1-based; IDs are 0-based to count-1
+    const startId = count; // Contract analysis IDs are 1-based.
+    const endId = Math.max(1, count - limit + 1);
     const analyses: JudgeRecentAnalysis[] = [];
 
-    // Read from newest (startId-1) down to oldest
-    for (let i = startId - 1; i >= Math.max(0, startId - limit); i--) {
+    // Read from newest down to oldest.
+    for (let i = startId; i >= endId; i--) {
       try {
         const [, rootHash, , score, recommendation, timestamp] =
           await contract.getAnalysis(i);
@@ -323,7 +324,7 @@ export async function GET(): Promise<NextResponse> {
 
         // Get the analysis count to derive the latest analysisId
         const analysisCount = await getAnalysisCountFromChain();
-        const analysisId = analysisCount > 0 ? analysisCount - 1 : 0;
+        const analysisId = analysisCount > 0 ? analysisCount : 0;
 
         // The explorerTxUrl should link to the contract address page so judges
         // can see all registered transactions — individual tx hashes are not
