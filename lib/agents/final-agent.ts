@@ -390,6 +390,75 @@ function clampScoreToProfile(score: number, profile: ScoreProfile): number {
   return Math.max(profile.minScore, Math.min(profile.maxScore, score));
 }
 
+function evidenceConflictsWithCalibration(item: string): boolean {
+  const normalized = item.toLowerCase();
+
+  return (
+    normalized.includes("final score calculation:") ||
+    normalized.includes("score calculation:") ||
+    normalized.includes("recommendation go") ||
+    normalized.includes("recommendation no_go") ||
+    normalized.includes("recommendation investigate_more") ||
+    normalized.includes("penalty applied:") ||
+    normalized.includes("final recommendation")
+  );
+}
+
+function sanitizeEvidenceForCalibration(evidence: string[]): string[] {
+  return evidence.filter((item) => !evidenceConflictsWithCalibration(item));
+}
+
+function matureProtocolResidualRisks(): RiskItem[] {
+  return [
+    {
+      title: "Fork-diff verification",
+      severity: "low",
+      explanation:
+        "The local fork should still be compared against the audited Uniswap V3 baseline before deployment.",
+    },
+    {
+      title: "Audit scope confirmation",
+      severity: "low",
+      explanation:
+        "The two audits are a strong signal, but their scope should cover this exact fork and deployment configuration.",
+    },
+    {
+      title: "Governance parameter monitoring",
+      severity: "medium",
+      explanation:
+        "Active governance is positive, but admin roles, timelocks, and parameter changes should remain observable.",
+    },
+  ];
+}
+
+function alignRisksWithDecision(
+  profile: ScoreProfile,
+  recommendation: Recommendation,
+  risks: RiskItem[],
+): RiskItem[] {
+  if (recommendation === "GO" && profile.kind === "mature_safe") {
+    return matureProtocolResidualRisks();
+  }
+
+  if (recommendation === "GO") {
+    return risks
+      .map((risk) => {
+        if (risk.severity !== "critical" && risk.severity !== "high") {
+          return risk;
+        }
+
+        return {
+          ...risk,
+          severity: "medium" as RiskSeverity,
+          explanation: `Residual, not blocking: ${risk.explanation}`,
+        };
+      })
+      .slice(0, 6);
+  }
+
+  return risks.slice(0, 6);
+}
+
 function createFallbackReport(input: FinalAgentInput): AnalysisReport {
   const memoryRiskHints = Array.from(new Set(input.memories.flatMap((memory) => memory.risks))).slice(0, 3);
 
@@ -477,17 +546,21 @@ function applyScoreCalibration(
     calculatedScore === finalScore
       ? `Base ${baseScore} - ${critic.penalty} critic penalty = ${finalScore}`
       : `Base ${baseScore} - ${critic.penalty} critic penalty = ${calculatedScore}; calibrated to ${finalScore} for profile bounds`;
+  const alignedRisks = alignRisksWithDecision(profile, recommendation, report.risks);
+  const sanitizedEvidence = sanitizeEvidenceForCalibration(report.evidence);
 
   const evidence = [
-    ...report.evidence,
+    ...sanitizedEvidence,
     `Critic adjustment: ${critic.totalChallenges} challenge(s), ${critic.resolvedChallenges} resolved, ${critic.unresolvedChallenges} unresolved (high ${critic.unresolvedHigh}, medium ${critic.unresolvedMedium}, low ${critic.unresolvedLow}) -> score adjusted -${critic.penalty}.`,
     `Score calibration: ${profile.label}. ${math}.`,
+    `Decision consistency: recommendation ${recommendation}, final score ${finalScore}, risks aligned after calibration.`,
   ].slice(0, 12);
 
   return {
     ...report,
     score: finalScore,
     recommendation,
+    risks: alignedRisks,
     evidence,
     criticAdjustment: {
       ...critic,

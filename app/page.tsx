@@ -234,9 +234,9 @@ export default function HomePage() {
               </h1>
 
               <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-400">
-                Persistent multi-agent cognitive backbone for autonomous Web3
-                decision-making. Built for 0G Compute, 0G Storage, and
-                OpenClaw-oriented orchestration.
+                Multi-agent Web3 due diligence with adversarial review,
+                semantic memory, 0G Storage receipts, and on-chain report
+                anchoring.
               </p>
             </div>
 

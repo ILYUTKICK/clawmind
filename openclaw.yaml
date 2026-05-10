@@ -4,9 +4,8 @@ kind: agentic-infrastructure
 track: "Track 1: Agentic Infrastructure & OpenClaw Lab"
 
 description: >
-  Persistent multi-agent cognitive backbone for autonomous Web3 decision-making,
-  powered by 0G Compute for multi-model agent inference and 0G Storage for report
-  and memory persistence with embedding-based semantic retrieval.
+  Multi-agent Web3 due diligence powered by 0G Compute for agent inference,
+  0G Storage for reports and memory, and 0G Chain for report anchoring.
 
 runtime:
   framework: nextjs

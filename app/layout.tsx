@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "ClawMind",
   description:
-    "Persistent multi-agent cognitive backbone for autonomous Web3 decision-making.",
+    "Multi-agent Web3 due diligence with adversarial review and on-chain report anchoring.",
 };
 
 export default function RootLayout({
