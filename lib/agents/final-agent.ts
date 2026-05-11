@@ -293,51 +293,96 @@ function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
 
 function isCriticChallengeResolved(input: FinalAgentInput, challenge: CriticChallenge): boolean {
   const challengeText = normalizeForScoring(`${challenge.challenge} ${challenge.explanation}`);
-  const context = normalizeForScoring(
+  const statedFacts = normalizeForScoring(
     [
       input.task,
-      input.plan,
       input.researchOutput,
       input.riskOutput,
-      input.architectureOutput,
     ].join(" "),
   );
 
-  const resolutionRules: Array<{ challenge: RegExp; mitigation: RegExp[] }> = [
-    {
-      challenge: /\boracle\b/,
-      mitigation: [/\bno oracle dependency\b/, /\bno external oracle\b/, /\btwap guard\b/],
-    },
-    {
-      challenge: /\b(audit|audited|formal verification)\b/,
-      mitigation: [/\baudited\b/, /\bwell-audited\b/, /\bformal verification\b/],
-    },
-    {
-      challenge: /\b(custody|funds|wallet|private key|signing|transaction)\b/,
-      mitigation: [
-        /\bnon-custodial\b/,
-        /\bno custody\b/,
-        /\bno signing\b/,
-        /\bdoes not sign\b/,
-        /\bhuman approval\b/,
-        /\bdeterministic policy\b/,
-        /\bpolicy gate\b/,
-        /\bwithdrawal guard\b/,
-      ],
-    },
-    {
-      challenge: /\b(governance|admin|upgrade)\b/,
-      mitigation: [/\bgovernance active\b/, /\btimelock\b/, /\bmultisig\b/, /\bdao\b/],
-    },
-    {
-      challenge: /\b(liquidity|tvl|market depth)\b/,
-      mitigation: [/\b100m tvl\b/, /\$100m\b/, /\bmature\b/, /\bdeep liquidity\b/],
-    },
-  ];
+  const challengeMatches = (patterns: RegExp[]) => hasAny(challengeText, patterns);
+  const factsHave = (patterns: RegExp[]) => hasAny(statedFacts, patterns);
 
-  return resolutionRules.some((rule) => {
-    return rule.challenge.test(challengeText) && rule.mitigation.some((pattern) => pattern.test(context));
-  });
+  const custodyChallenge = challengeMatches([
+    /\bcustody\b/,
+    /\bfunds\b/,
+    /\bwallet\b/,
+    /\bprivate key\b/,
+    /\bsigning\b/,
+    /\btransaction\b/,
+    /\bwithdrawal\b/,
+    /\bdrain\b/,
+  ]);
+
+  if (custodyChallenge) {
+    const explicitNonCustody = factsHave([
+      /\bnon-custodial\b/,
+      /\bno custody\b/,
+      /\bno signing\b/,
+      /\bdoes not sign\b/,
+      /\bno private keys?\b/,
+      /\bwithout private keys?\b/,
+    ]);
+    const custodyExposure = factsHave([
+      /\bself-custodial\b/,
+      /\buser funds\b/,
+      /\bauto-?trad(?:e|es|ing)\b/,
+      /\bdelegated wallet\b/,
+      /\bsign(?:s|ing)? transactions\b/,
+    ]) && !explicitNonCustody;
+    const missingHardGuard = factsHave([
+      /\bno withdrawal guards?\b/,
+      /\bwithout withdrawal guards?\b/,
+      /\bkey in env\b/,
+      /\benv var\b/,
+      /\benvironment variable\b/,
+      /\bprivate key (?:stored|exposed|leak|leakage)\b/,
+      /\bstatic key\b/,
+      /\bsole signing\b/,
+      /\bunrestricted\b/,
+    ]);
+    const hardCustodyControls = factsHave([
+      /\bnon-custodial\b/,
+      /\bno custody\b/,
+      /\bno signing\b/,
+      /\bdoes not sign\b/,
+      /\bhuman approval\b/,
+      /\bpolicy gate\b/,
+      /\bdeterministic policy\b/,
+      /\bwithdrawal guards?\b/,
+      /\bsecure signing service\b/,
+      /\bhsm\b/,
+      /\bhardware security module\b/,
+      /\bmultisig\b/,
+      /\bmulti-signature\b/,
+    ]);
+
+    const unresolvedCustodySignals = missingHardGuard || (custodyExposure && !hardCustodyControls);
+
+    return hardCustodyControls && !unresolvedCustodySignals;
+  }
+
+  if (challengeMatches([/\boracle\b/])) {
+    return (
+      factsHave([/\bno oracle dependency\b/, /\bno external oracle\b/, /\btwap guard\b/]) &&
+      !factsHave([/\boracle manipulation\b/, /\bnovel twap\b/, /\buntested oracle\b/])
+    );
+  }
+
+  if (challengeMatches([/\b(audit|audited|formal verification)\b/])) {
+    return factsHave([/\bwell-audited\b/, /\baudited (?:2x|twice|by 2|by two)\b/, /\bformal verification\b/]);
+  }
+
+  if (challengeMatches([/\b(governance|admin|upgrade)\b/])) {
+    return factsHave([/\btimelock\b/, /\bgovernance active\b/, /\bdao\b/]) && !factsHave([/\badmin key\b/]);
+  }
+
+  if (challengeMatches([/\b(liquidity|tvl|market depth)\b/])) {
+    return factsHave([/\b100m tvl\b/, /\$100m\b/, /\bdeep liquidity\b/, /\bmature\b/]);
+  }
+
+  return false;
 }
 
 function countCriticPenalty(input: FinalAgentInput) {
@@ -394,11 +439,16 @@ function evidenceConflictsWithCalibration(item: string): boolean {
   const normalized = item.toLowerCase();
 
   return (
+    normalized.includes("base score derived") ||
+    normalized.includes("critic adjustment:") ||
+    normalized.includes("critic agent identified") ||
     normalized.includes("final score calculation:") ||
+    normalized.includes("final score") ||
     normalized.includes("score calculation:") ||
     normalized.includes("recommendation go") ||
     normalized.includes("recommendation no_go") ||
     normalized.includes("recommendation investigate_more") ||
+    normalized.includes("recommendation is ") ||
     normalized.includes("penalty applied:") ||
     normalized.includes("final recommendation")
   );
