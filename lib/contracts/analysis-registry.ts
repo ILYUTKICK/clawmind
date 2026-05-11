@@ -377,6 +377,7 @@ export async function recordAnalysisOnChain(
 // ---------------------------------------------------------------------------
 
 type LatestAnalysisRecord = {
+  analysisId: number;
   submitter: string;
   rootHash: string;
   storageUri: string;
@@ -417,6 +418,7 @@ export async function getLatestAnalysisFromChain(): Promise<LatestAnalysisRecord
       provider
     );
 
+    const analysisCount = await contract.analysisCount();
     const [submitter, rootHash, storageUri, score, recommendation, timestamp] =
       await contract.getLatestAnalysis();
 
@@ -438,6 +440,7 @@ export async function getLatestAnalysisFromChain(): Promise<LatestAnalysisRecord
     }
 
     return {
+      analysisId: Number(analysisCount),
       submitter,
       rootHash,
       storageUri,

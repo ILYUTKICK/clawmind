@@ -52,7 +52,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         const latest = await getLatestAnalysisFromChain();
         if (latest) {
           latestOnChain = {
-            analysisId: latest.submitter ? 1 : 0,
+            analysisId: latest.analysisId,
             rootHash: latest.rootHash,
             score: latest.score,
             recommendation: latest.recommendation,
