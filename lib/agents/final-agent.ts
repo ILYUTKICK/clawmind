@@ -220,6 +220,16 @@ function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
     };
   }
 
+  if (isReadOnlySafeTaskText(taskText)) {
+    return {
+      kind: "read_only_safe",
+      label: "Read-only non-custodial analytics workflow",
+      baseScore: 88,
+      minScore: 75,
+      maxScore: 92,
+    };
+  }
+
   const custodyOrExecution = hasAny(allText, [
     /\bself-custodial\b/,
     /\bcustody\b/,
@@ -244,16 +254,6 @@ function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
       baseScore: 52,
       minScore: 10,
       maxScore: 25,
-    };
-  }
-
-  if (isReadOnlySafeTaskText(taskText)) {
-    return {
-      kind: "read_only_safe",
-      label: "Read-only non-custodial analytics workflow",
-      baseScore: 88,
-      minScore: 75,
-      maxScore: 92,
     };
   }
 
