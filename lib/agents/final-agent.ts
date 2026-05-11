@@ -179,13 +179,16 @@ function isReadOnlySafeTaskText(text: string): boolean {
     /\bcannot move funds\b/,
   ]);
   const unsafeExecution = hasAny(text, [
-    /\bprivate key\b/,
+    /\bprivate key (?:stored|exposed|leak|leakage|in env|access)\b/,
     /\benv var\b/,
     /\bself-custodial\b/,
     /\buser funds\b/,
     /\bauto-?trad(?:e|es|ing)\b/,
     /\bcan move funds\b/,
-    /\bability to move funds\b/,
+    /\bmoves funds\b/,
+    /\bfund movement capability\b/,
+    /\btransaction signing enabled\b/,
+    /\bwallet connection enabled\b/,
   ]);
 
   return readOnly && noExecution && !unsafeExecution;
