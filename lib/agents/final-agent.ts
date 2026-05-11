@@ -503,11 +503,19 @@ function recommendationFromScore(
     return "NO_GO";
   }
 
+  if (profile.kind === "ambiguous_novel") {
+    return "INVESTIGATE_MORE";
+  }
+
+  if (profile.kind === "edge_case" && score >= 35 && unresolvedHigh < 2) {
+    return "INVESTIGATE_MORE";
+  }
+
   if (score < 35 || unresolvedHigh >= 2) {
     return "NO_GO";
   }
 
-  if (score >= 70 && unresolvedHigh === 0 && profile.kind !== "ambiguous_novel" && profile.kind !== "edge_case") {
+  if (score >= 70 && unresolvedHigh === 0 && profile.kind !== "edge_case") {
     return "GO";
   }
 
@@ -526,9 +534,13 @@ function clampScoreToProfile(
   const cappedScore = Math.min(profile.maxScore, score);
   const canFloorSafeProfile =
     (profile.kind === "mature_safe" || profile.kind === "read_only_safe") && critic.unresolvedHigh === 0;
+  const canFloorAmbiguousProfile = profile.kind === "ambiguous_novel";
+  const canFloorBoundedEdgeProfile = profile.kind === "edge_case" && critic.unresolvedHigh < 2;
   const canUseProfileFloor =
     critic.penalty === 0 ||
     canFloorSafeProfile ||
+    canFloorAmbiguousProfile ||
+    canFloorBoundedEdgeProfile ||
     profile.kind === "garbage" ||
     profile.kind === "high_risk_custody";
 
@@ -822,6 +834,9 @@ export async function runFinalAgent(input: FinalAgentInput): Promise<{
       "  Summary: New AMM with unique TWAP oracle, 1 audit, $5M TVL, team anonymous.",
       "  Expected: score 45-55, recommendation INVESTIGATE_MORE",
       "  Reasoning: Innovation is positive but unproven, team credibility missing.",
+      "",
+      "Calibration anchor: If the task describes a mature, multi-audited protocol with $50M+ TVL and active governance, score should land in the 75-90 range unless the Critic raised unresolved HIGH challenges tied to direct custody, private keys, unrestricted admin control, or fund loss.",
+      "Calibration anchor: If the task describes a novel AMM/TWAP/oracle mechanism with one audit, low-to-mid TVL, or an anonymous team, classify it as INVESTIGATE_MORE in the 40-60 range unless it also includes direct custody, exposed private keys, or automated user-fund execution.",
       "",
       "RECOMMENDATION RULES:",
       "- GO: score >= 70 AND no HIGH critic challenges unresolved.",
