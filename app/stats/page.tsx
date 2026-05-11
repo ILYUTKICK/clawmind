@@ -51,15 +51,15 @@ type JudgeData = {
 };
 
 function getBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+  const configured = process.env.NEXT_PUBLIC_APP_URL || process.env.CLAWMIND_APP_BASE_URL;
+
+  if (configured) {
+    return configured.replace(/\/+$/, "");
   }
 
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-
-  return "http://localhost:3000";
+  return process.env.NODE_ENV === "development"
+    ? "http://localhost:3000"
+    : "https://clawmind-puce.vercel.app";
 }
 
 async function getJudgeData(): Promise<JudgeData> {
