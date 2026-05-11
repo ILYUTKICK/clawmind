@@ -219,7 +219,7 @@ async function getRecentAnalysesFromChain(
       provider
     );
 
-    const limit = Math.min(count, 10);
+    const limit = Math.min(count, 3);
     const startId = count; // Contract analysis IDs are 1-based.
     const endId = Math.max(1, count - limit + 1);
     const analyses: JudgeRecentAnalysis[] = [];
