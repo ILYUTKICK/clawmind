@@ -14,6 +14,7 @@ import {
 import { getInfrastructureStatus } from "@/lib/infrastructure-status";
 import { getExplorerAddressUrl } from "@/lib/storage/zero-g-config";
 import { getAllMemories, getRelevantMemories } from "@/lib/memory/memory-manager";
+import { getLatestMemoryIndexUri } from "@/lib/memory/persistent-memory-store";
 import { isSemanticRetrievalActive } from "@/lib/embeddings/embedding-provider";
 import { promises as fs } from "fs";
 import path from "path";
@@ -101,7 +102,10 @@ type JudgeAnalysesPerHour = {
 type JudgeMemoryStats = {
   totalRecords: number;
   zeroGBackedCount: number;
+  runtimeGeneratedCount: number;
+  seedCount: number;
   sampleMemoryIds: string[];
+  latestMemoryIndexUri: string | null;
   semanticRetrievalActive: boolean;
   semanticRetrievalExample: string | null;
 };
@@ -219,7 +223,7 @@ async function getRecentAnalysesFromChain(
       provider
     );
 
-    const limit = Math.min(count, 3);
+    const limit = Math.min(count, 5);
     const startId = count; // Contract analysis IDs are 1-based.
     const endId = Math.max(1, count - limit + 1);
     const analyses: JudgeRecentAnalysis[] = [];
@@ -402,6 +406,10 @@ export async function GET(): Promise<NextResponse> {
     const zeroGBackedCount = allMemories.filter((m) =>
       m.storageUri?.startsWith("0g://")
     ).length;
+    const runtimeGeneratedCount = allMemories.filter((m) =>
+      m.id.startsWith("mem_generated_")
+    ).length;
+    const latestMemoryIndexUri = await getLatestMemoryIndexUri();
     const sampleMemoryIds = allMemories.slice(0, 5).map((m) => m.id);
     const semanticExampleMemories = await getRelevantMemories(
       "Self-custodial agent that auto-trades user funds with no withdrawal guards"
@@ -418,7 +426,10 @@ export async function GET(): Promise<NextResponse> {
     const memory: JudgeMemoryStats = {
       totalRecords: allMemories.length,
       zeroGBackedCount,
+      runtimeGeneratedCount,
+      seedCount: allMemories.length - runtimeGeneratedCount,
       sampleMemoryIds,
+      latestMemoryIndexUri,
       semanticRetrievalActive: isSemanticRetrievalActive(),
       semanticRetrievalExample,
     };

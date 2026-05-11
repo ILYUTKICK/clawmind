@@ -1,8 +1,61 @@
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
+import Redis from "ioredis";
 import { MemoryRecord } from "@/lib/types";
 import { retrieveMemoryIndexFromZeroGStorage } from "@/lib/storage/zero-g-memory-retrieval";
+
+const REDIS_MEMORY_RECORDS_KEY = "clawmind:memory:records";
+const REDIS_MEMORY_INDEX_URI_KEY = "clawmind:memory:latest-index-uri";
+const BOOTSTRAP_MEMORY_INDEX_URI =
+  "0g://0x6b856021b2581579576e507ec344dd0d86cdb6f55d7bdbc3e2f3e4ee45e06025?tx=0x1538c1a76c6da1ff64a039ac89223e4a5b64d0e18e6bb3d0c54bcae82ea49535";
+
+let redisClient: Redis | null = null;
+let redisChecked = false;
+
+function getRedisUrl(): string {
+  return process.env.KV_REDIS_URL || process.env.REDIS_URL || "";
+}
+
+async function getRedis(): Promise<Redis | null> {
+  if (redisChecked) {
+    return redisClient;
+  }
+
+  const redisUrl = getRedisUrl();
+  if (!redisUrl) {
+    redisChecked = true;
+    return null;
+  }
+
+  try {
+    const client = new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      connectTimeout: 5000,
+      lazyConnect: true,
+      retryStrategy(times) {
+        if (times > 3) {
+          return null;
+        }
+
+        return Math.min(times * 200, 2000);
+      },
+    });
+
+    await client.ping();
+    redisClient = client;
+    redisChecked = true;
+    return redisClient;
+  } catch (error) {
+    console.warn(
+      `[Memory Store] Redis unavailable, using file/0G fallback: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    );
+    redisChecked = true;
+    return null;
+  }
+}
 
 function getMemoryDir(): string {
   const isVercel = process.env.VERCEL === "1";
@@ -40,6 +93,20 @@ export async function rememberLatestMemoryIndexUri(storageUri?: string): Promise
     return;
   }
 
+  const redis = await getRedis();
+
+  if (redis) {
+    try {
+      await redis.set(REDIS_MEMORY_INDEX_URI_KEY, storageUri);
+    } catch (error) {
+      console.warn(
+        `[Memory Store] Failed to persist latest 0G memory index URI in Redis: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      );
+    }
+  }
+
   try {
     await fs.mkdir(getMemoryDir(), { recursive: true });
     await fs.writeFile(getLatestMemoryIndexFile(), storageUri, "utf-8");
@@ -59,14 +126,36 @@ async function readLatestMemoryIndexUri(): Promise<string | null> {
     return explicitUri;
   }
 
+  const redis = await getRedis();
+
+  if (redis) {
+    try {
+      const redisUri = await redis.get(REDIS_MEMORY_INDEX_URI_KEY);
+
+      if (typeof redisUri === "string" && redisUri.startsWith("0g://")) {
+        return redisUri;
+      }
+    } catch (error) {
+      console.warn(
+        `[Memory Store] Failed to read latest 0G memory index URI from Redis: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      );
+    }
+  }
+
   try {
     const raw = await fs.readFile(getLatestMemoryIndexFile(), "utf-8");
     const trimmed = raw.trim();
 
     return trimmed.startsWith("0g://") ? trimmed : null;
   } catch {
-    return null;
+    return BOOTSTRAP_MEMORY_INDEX_URI;
   }
+}
+
+export async function getLatestMemoryIndexUri(): Promise<string | null> {
+  return readLatestMemoryIndexUri();
 }
 
 function normalizeMemoryTask(task: string): string {
@@ -135,6 +224,38 @@ async function readLocalPersistentMemories(): Promise<MemoryRecord[]> {
   }
 }
 
+async function readRedisPersistentMemories(): Promise<MemoryRecord[]> {
+  const redis = await getRedis();
+
+  if (!redis) {
+    return [];
+  }
+
+  try {
+    const raw = await redis.get(REDIS_MEMORY_RECORDS_KEY);
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(isMemoryRecord);
+  } catch (error) {
+    console.warn(
+      `[Memory Store] Failed to read Redis memories: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    );
+
+    return [];
+  }
+}
+
 async function readZeroGMemoryIndex(): Promise<MemoryRecord[]> {
   const latestMemoryIndexUri = await readLatestMemoryIndexUri();
 
@@ -155,18 +276,35 @@ async function readZeroGMemoryIndex(): Promise<MemoryRecord[]> {
 }
 
 export async function readPersistentMemories(): Promise<MemoryRecord[]> {
-  const [localMemories, zeroGMemories] = await Promise.all([readLocalPersistentMemories(), readZeroGMemoryIndex()]);
+  const [redisMemories, localMemories, zeroGMemories] = await Promise.all([
+    readRedisPersistentMemories(),
+    readLocalPersistentMemories(),
+    readZeroGMemoryIndex(),
+  ]);
 
-  return deduplicateMemories([...zeroGMemories, ...localMemories]).slice(0, 50);
+  return deduplicateMemories([...redisMemories, ...zeroGMemories, ...localMemories]).slice(0, 50);
 }
 
 export async function writePersistentMemories(memories: MemoryRecord[]): Promise<void> {
+  const sortedMemories = deduplicateMemories(memories).slice(0, 50);
+  const redis = await getRedis();
+
+  if (redis) {
+    try {
+      await redis.set(REDIS_MEMORY_RECORDS_KEY, JSON.stringify(sortedMemories));
+    } catch (error) {
+      console.warn(
+        `[Memory Store] Failed to write Redis memories: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      );
+    }
+  }
+
   try {
     await ensureMemoryFileExists();
 
     const memoryFile = getMemoryFile();
-    const sortedMemories = deduplicateMemories(memories).slice(0, 50);
-
     await fs.writeFile(memoryFile, JSON.stringify(sortedMemories, null, 2), "utf-8");
   } catch (error) {
     console.warn(

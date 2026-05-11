@@ -82,7 +82,10 @@ type JudgeAnalysesPerHour = {
 type JudgeMemoryStats = {
   totalRecords: number;
   zeroGBackedCount: number;
+  runtimeGeneratedCount: number;
+  seedCount: number;
   sampleMemoryIds: string[];
+  latestMemoryIndexUri: string | null;
   semanticRetrievalActive: boolean;
   semanticRetrievalExample: string | null;
 };
@@ -700,8 +703,8 @@ export default function JudgePage() {
               <p className="text-xs text-zinc-500 mt-1">0G Storage-Backed</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-center">
-              <p className="text-2xl font-bold text-cyan-300">{data.memory.totalRecords - data.memory.zeroGBackedCount}</p>
-              <p className="text-xs text-zinc-500 mt-1">Local / Seed Memories</p>
+              <p className="text-2xl font-bold text-cyan-300">{data.memory.runtimeGeneratedCount}</p>
+              <p className="text-xs text-zinc-500 mt-1">Runtime Generated</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-center">
               <p className={data.memory.semanticRetrievalActive ? "text-2xl font-bold text-emerald-300" : "text-2xl font-bold text-yellow-300"}>
@@ -713,6 +716,11 @@ export default function JudgePage() {
           {data.memory.semanticRetrievalExample && (
             <p className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 font-mono text-xs text-cyan-300">
               {data.memory.semanticRetrievalExample}
+            </p>
+          )}
+          {data.memory.latestMemoryIndexUri && (
+            <p className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3 font-mono text-xs text-zinc-400 break-all">
+              Latest memory index: {data.memory.latestMemoryIndexUri}
             </p>
           )}
         </section>

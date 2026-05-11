@@ -100,14 +100,14 @@ export async function getRelevantMemories(task: string): Promise<MemoryRecord[]>
 
       if (scoredMemories.length > 0) {
         const sortedMemories = scoredMemories.sort((a, b) => b.score - a.score);
-        const minSimilarity = taskEmbedResult.provider === "HASHED_FALLBACK" ? 0.05 : 0.3;
+        const minSimilarity = taskEmbedResult.provider === "HASHED_FALLBACK" ? 0.12 : 0.3;
         const topMemories = sortedMemories
           .filter((item) => item.score > minSimilarity)
           .slice(0, 3)
           .map((item) => item.memory);
 
         if (topMemories.length > 0) {
-          console.log(`[Memory] Semantic retrieval: top ${topMemories.length} memories (scores: ${sortedMemories.slice(0, 3).map(s => s.score.toFixed(2)).join(", ")})`);
+          console.log(`[Memory] Semantic retrieval: top ${topMemories.length} memories (scores: ${topMemories.map((memory) => memory.similarityScore?.toFixed(2) ?? "n/a").join(", ")})`);
           return deduplicateRelevantMemories(topMemories);
         }
       }
@@ -134,7 +134,7 @@ export async function getRelevantMemories(task: string): Promise<MemoryRecord[]>
     return relevantMemories;
   }
 
-  return deduplicateRelevantMemories(allMemories).slice(0, 2);
+  return [];
 }
 
 export function formatMemoryContext(memories: MemoryRecord[]): string {
