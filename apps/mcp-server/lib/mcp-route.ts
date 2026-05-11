@@ -10,6 +10,10 @@ type JsonRpcPayload = {
   };
 };
 
+function hasRedisUrl(): boolean {
+  return Boolean(process.env.KV_REDIS_URL || process.env.REDIS_URL);
+}
+
 function toolResult(value: unknown) {
   return {
     content: [
@@ -46,6 +50,15 @@ async function isToolCall(request: Request): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function isSseRequestWithoutRedis(request: Request): boolean {
+  if (hasRedisUrl()) {
+    return false;
+  }
+
+  const pathname = new URL(request.url).pathname;
+  return request.method === "GET" && pathname.endsWith("/sse");
 }
 
 export function createClawMindMcpRoute(basePath: string) {
@@ -96,6 +109,17 @@ export function createClawMindMcpRoute(basePath: string) {
           message: "Set X-MCP-Client-Id to any stable client identifier, for example demo-client.",
         },
         400,
+      );
+    }
+
+    if (isSseRequestWithoutRedis(request)) {
+      return jsonResponse(
+        {
+          error: "SSE transport requires Redis.",
+          message:
+            "Set KV_REDIS_URL or REDIS_URL for /sse. Streamable HTTP remains available at /mcp and /api/mcp.",
+        },
+        503,
       );
     }
 

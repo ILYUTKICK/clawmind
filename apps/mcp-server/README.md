@@ -25,7 +25,7 @@ CLAWMIND_API_BASE_URL=https://clawmind-puce.vercel.app
 KV_REDIS_URL=redis://default:...@...
 ```
 
-`CLAWMIND_API_BASE_URL` points to the main ClawMind app. `KV_REDIS_URL` or `REDIS_URL` is used for MCP rate limiting and SSE resumability.
+`CLAWMIND_API_BASE_URL` points to the main ClawMind app. `KV_REDIS_URL` or `REDIS_URL` is used for MCP rate limiting and is required for `/sse`; `/mcp` and `/api/mcp` can still run locally without Redis by using an in-memory development limiter.
 
 ## Client Config
 
@@ -58,6 +58,8 @@ SSE-style config, if your client expects the older transport:
   }
 }
 ```
+
+Note: `/sse` requires `KV_REDIS_URL` or `REDIS_URL` on the MCP deployment. Prefer `/mcp` for Claude Desktop and Cursor when Streamable HTTP is supported.
 
 Claude Desktop fallback through `mcp-remote`:
 
