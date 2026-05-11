@@ -8,7 +8,9 @@ ClawMind runs multi-agent Web3 due diligence and anchors the final report on 0G 
 |---|---|
 | Live app | https://clawmind-puce.vercel.app |
 | Judge mode | https://clawmind-puce.vercel.app/judge |
+| Public stats | https://clawmind-puce.vercel.app/stats |
 | Judge API | https://clawmind-puce.vercel.app/api/judge |
+| MCP server | https://clawmind-mcp.vercel.app/mcp |
 | OpenClaw manifest | https://clawmind-puce.vercel.app/api/openclaw/manifest?format=json |
 | 0G contract | https://chainscan.0g.ai/address/0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1 |
 
@@ -144,6 +146,30 @@ curl -X POST https://clawmind-puce.vercel.app/api/analyze \
 | `GET /api/openclaw/manifest?format=json` | Returns parsed manifest plus live 0G evidence. |
 | `GET /api/debug` | Returns configuration diagnostics. |
 | `POST /api/report/retrieve` | Retrieves a report by `0g://` URI or root hash. |
+
+## MCP Server
+
+ClawMind also runs as a remote MCP server for Claude Desktop, Cursor, and other MCP-compatible clients.
+
+```json
+{
+  "mcpServers": {
+    "clawmind": {
+      "url": "https://clawmind-mcp.vercel.app/mcp",
+      "headers": {
+        "X-MCP-Client-Id": "demo-client"
+      }
+    }
+  }
+}
+```
+
+Tools:
+
+| Tool | Purpose |
+|---|---|
+| `analyze_web3_project(task)` | Runs the same signed 8-step ClawMind analysis pipeline. |
+| `get_recent_analyses(limit)` | Reads recent signed analyses from `/api/judge`. |
 
 ## Project Structure
 

@@ -16,6 +16,8 @@ import { getExplorerAddressUrl } from "@/lib/storage/zero-g-config";
 import { getAllMemories, getRelevantMemories } from "@/lib/memory/memory-manager";
 import { getLatestMemoryIndexUri } from "@/lib/memory/persistent-memory-store";
 import { isSemanticRetrievalActive } from "@/lib/embeddings/embedding-provider";
+import { getAnalysisMetricsSummary } from "@/lib/metrics/analysis-metrics";
+import type { AnalysisMetricsSummary } from "@/lib/metrics/analysis-metrics";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -110,6 +112,18 @@ type JudgeMemoryStats = {
   semanticRetrievalExample: string | null;
 };
 
+type JudgeScoreDistribution = {
+  GO: number;
+  INVESTIGATE_MORE: number;
+  NO_GO: number;
+};
+
+type JudgeMcpUsageStats = {
+  trackedAnalyses: number;
+  mcpInitiatedAnalyses: number;
+  webInitiatedAnalyses: number;
+};
+
 type JudgeData = {
   // Project info
   projectName: string;
@@ -129,6 +143,9 @@ type JudgeData = {
   analysisCount: number;
   recentAnalyses: JudgeRecentAnalysis[];
   analysesPerHour: JudgeAnalysesPerHour[];
+  scoreDistribution: JudgeScoreDistribution;
+  criticEffectiveness: AnalysisMetricsSummary["critic"];
+  mcpUsage: JudgeMcpUsageStats;
 
   // Memory stats
   memory: JudgeMemoryStats;
@@ -223,7 +240,7 @@ async function getRecentAnalysesFromChain(
       provider
     );
 
-    const limit = Math.min(count, 5);
+    const limit = Math.min(count, 10);
     const startId = count; // Contract analysis IDs are 1-based.
     const endId = Math.max(1, count - limit + 1);
     const analyses: JudgeRecentAnalysis[] = [];
@@ -292,6 +309,25 @@ function computeAnalysesPerHour(
     const hourPart = key.split("T")[1];
     return { hour: hourPart ?? key, count };
   });
+}
+
+function computeScoreDistribution(
+  analyses: JudgeRecentAnalysis[]
+): JudgeScoreDistribution {
+  return analyses.reduce<JudgeScoreDistribution>(
+    (acc, analysis) => {
+      if (
+        analysis.recommendation === "GO" ||
+        analysis.recommendation === "INVESTIGATE_MORE" ||
+        analysis.recommendation === "NO_GO"
+      ) {
+        acc[analysis.recommendation] += 1;
+      }
+
+      return acc;
+    },
+    { GO: 0, INVESTIGATE_MORE: 0, NO_GO: 0 },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +478,13 @@ export async function GET(): Promise<NextResponse> {
 
     // --- Analyses per hour (last 24h) ---
     const analysesPerHour = computeAnalysesPerHour(recentAnalyses);
+    const scoreDistribution = computeScoreDistribution(recentAnalyses);
+    const metricsSummary = await getAnalysisMetricsSummary();
+    const mcpUsage: JudgeMcpUsageStats = {
+      trackedAnalyses: metricsSummary.trackedAnalyses,
+      mcpInitiatedAnalyses: metricsSummary.sources.mcp,
+      webInitiatedAnalyses: metricsSummary.sources.web,
+    };
 
     // --- Assemble final response ---
     const judgeData: JudgeData = {
@@ -454,6 +497,9 @@ export async function GET(): Promise<NextResponse> {
       analysisCount,
       recentAnalyses,
       analysesPerHour,
+      scoreDistribution,
+      criticEffectiveness: metricsSummary.critic,
+      mcpUsage,
       memory,
       generatedAt: new Date().toISOString(),
     };

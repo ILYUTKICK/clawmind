@@ -25,6 +25,7 @@ type InfraStatus = InfrastructureStatus;
 type TaskPollResponse = {
   taskId: string;
   task: string;
+  source?: "web" | "mcp";
   status: "running" | "completed" | "failed";
   currentStep: string;
   steps: AgentStep[];

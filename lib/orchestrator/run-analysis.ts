@@ -10,7 +10,8 @@ import { rememberLatestMemoryIndexUri } from "@/lib/memory/persistent-memory-sto
 import { saveAnalysisReceipt } from "@/lib/storage/storage-receipt";
 import { saveMemoryIndexToZeroGStorage } from "@/lib/storage/zero-g-memory-index";
 import { recordAnalysisOnChain, buildOnChainReceipt } from "@/lib/contracts/analysis-registry";
-import { AgentName, AgentStep, AnalysisResult } from "@/lib/types";
+import { recordAnalysisMetric } from "@/lib/metrics/analysis-metrics";
+import { AgentName, AgentStep, AnalysisResult, AnalysisSource } from "@/lib/types";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -46,13 +47,19 @@ function failStep(step: AgentStep, error: string): AgentStep {
 
 // Progress callback type — called after each pipeline step
 export type ProgressCallback = (currentStep: string, steps: AgentStep[]) => void | Promise<void>;
+type RunAnalysisOptions = {
+  taskId?: string;
+  source?: AnalysisSource;
+};
 
 export async function runAnalysis(
   task: string,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  options: RunAnalysisOptions = {},
 ): Promise<AnalysisResult> {
   const steps: AgentStep[] = [];
   const computeProvider = getComputeProviderLabel();
+  const source = options.source ?? "web";
 
   // Helper to push a step and notify progress
   function pushStep(step: AgentStep, currentStep: string) {
@@ -276,7 +283,7 @@ export async function runAnalysis(
     "completed"
   );
 
-  return {
+  const analysisResult: AnalysisResult = {
     task,
     steps,
     relevantMemories,
@@ -285,4 +292,18 @@ export async function runAnalysis(
     memoryIndexReceipt,
     onChainReceipt,
   };
+
+  if (options.taskId) {
+    try {
+      await recordAnalysisMetric(options.taskId, source, analysisResult);
+    } catch (error) {
+      console.warn(
+        `[Metrics] Failed to record analysis metric: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      );
+    }
+  }
+
+  return analysisResult;
 }

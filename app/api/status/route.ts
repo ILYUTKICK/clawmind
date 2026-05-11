@@ -87,6 +87,7 @@ async function handleTaskPoll(taskId: string): Promise<NextResponse> {
     {
       taskId: task.taskId,
       task: task.task,
+      source: task.source,
       status: task.status,
       currentStep: task.currentStep,
       steps: task.steps,

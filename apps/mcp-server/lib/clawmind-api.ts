@@ -48,8 +48,9 @@ export async function analyzeWeb3Project(task: string): Promise<AnalyzeToolResul
     headers: {
       "Content-Type": "application/json",
       "User-Agent": "clawmind-mcp-server/0.1.0",
+      "X-ClawMind-Source": "mcp",
     },
-    body: JSON.stringify({ task }),
+    body: JSON.stringify({ task, source: "mcp" }),
   });
 
   const startData = await readJson<AnalyzeStartResponse>(startResponse);

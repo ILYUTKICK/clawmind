@@ -6,14 +6,30 @@ import {
   completeTask,
   failTask,
 } from "@/lib/orchestrator/task-store";
+import { AnalysisSource } from "@/lib/types";
 
 // Vercel serverless function max duration (seconds)
 // Hobby: 60s, Pro: 300s, Enterprise: 900s
 export const maxDuration = 300;
 
+function detectAnalysisSource(request: NextRequest, source: unknown): AnalysisSource {
+  if (source === "mcp") {
+    return "mcp";
+  }
+
+  const sourceHeader = request.headers.get("x-clawmind-source")?.toLowerCase();
+  const userAgent = request.headers.get("user-agent")?.toLowerCase() ?? "";
+
+  if (sourceHeader === "mcp" || userAgent.includes("clawmind-mcp-server")) {
+    return "mcp";
+  }
+
+  return "web";
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as { task?: unknown };
+    const body = (await request.json()) as { task?: unknown; source?: unknown };
 
     if (typeof body.task !== "string" || body.task.trim().length < 10) {
       return NextResponse.json(
@@ -26,17 +42,18 @@ export async function POST(request: NextRequest) {
     }
 
     const task = body.task.trim();
+    const source = detectAnalysisSource(request, body.source);
     const taskId = crypto.randomUUID();
 
     // Create task in store (KV or in-memory)
-    await createTask(taskId, task);
+    await createTask(taskId, task, source);
 
     // Start pipeline in background — do NOT await it!
     const pipelinePromise = (async () => {
       try {
         const result = await runAnalysis(task, async (currentStep, steps) => {
           await updateTaskStep(taskId, currentStep, steps);
-        });
+        }, { taskId, source });
         await completeTask(taskId, result);
       } catch (error) {
         const message =
@@ -59,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     // Return taskId immediately — client will poll /api/status
     return NextResponse.json(
-      { taskId, status: "running" },
+      { taskId, status: "running", source },
       { status: 202 }
     );
   } catch (error) {

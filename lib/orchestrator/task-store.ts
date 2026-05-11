@@ -7,11 +7,12 @@
 // ---------------------------------------------------------------------------
 
 import Redis from "ioredis";
-import { AgentStep, AnalysisResult } from "@/lib/types";
+import { AgentStep, AnalysisResult, AnalysisSource } from "@/lib/types";
 
 export type TaskState = {
   taskId: string;
   task: string;
+  source: AnalysisSource;
   status: "running" | "completed" | "failed";
   currentStep: string;
   steps: AgentStep[];
@@ -97,11 +98,16 @@ function pruneOldTasks() {
 
 const KV_KEY_PREFIX = "clawmind:task:";
 
-export async function createTask(taskId: string, task: string): Promise<TaskState> {
+export async function createTask(
+  taskId: string,
+  task: string,
+  source: AnalysisSource = "web",
+): Promise<TaskState> {
   const now = new Date().toISOString();
   const state: TaskState = {
     taskId,
     task,
+    source,
     status: "running",
     currentStep: "initializing",
     steps: [],

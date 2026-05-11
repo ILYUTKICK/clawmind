@@ -4,18 +4,18 @@ Remote MCP access for ClawMind: run the existing multi-agent Web3 analysis pipel
 
 ## Live Endpoint
 
-Set this to the separate Vercel deployment for `apps/mcp-server`:
+Live deployment:
 
 ```text
-https://your-mcp-deployment.vercel.app/api/mcp
+https://clawmind-mcp.vercel.app/api/mcp
 ```
 
 Root aliases are also available for clients or demos that expect shorter MCP paths:
 
 ```text
-https://your-mcp-deployment.vercel.app/mcp
-https://your-mcp-deployment.vercel.app/api/sse
-https://your-mcp-deployment.vercel.app/sse
+https://clawmind-mcp.vercel.app/mcp
+https://clawmind-mcp.vercel.app/api/sse
+https://clawmind-mcp.vercel.app/sse
 ```
 
 ## Environment
@@ -35,7 +35,7 @@ Claude Desktop with Streamable HTTP:
 {
   "mcpServers": {
     "clawmind": {
-      "url": "https://your-mcp-deployment.vercel.app/mcp",
+      "url": "https://clawmind-mcp.vercel.app/mcp",
       "headers": {
         "X-MCP-Client-Id": "demo-client"
       }
@@ -50,7 +50,7 @@ SSE-style config, if your client expects the older transport:
 {
   "mcpServers": {
     "clawmind": {
-      "url": "https://your-mcp-deployment.vercel.app/sse",
+      "url": "https://clawmind-mcp.vercel.app/sse",
       "headers": {
         "X-MCP-Client-Id": "demo-client"
       }
@@ -71,7 +71,7 @@ Claude Desktop fallback through `mcp-remote`:
       "args": [
         "-y",
         "mcp-remote",
-        "https://your-mcp-deployment.vercel.app/api/mcp",
+        "https://clawmind-mcp.vercel.app/api/mcp",
         "--header",
         "X-MCP-Client-Id: demo-client"
       ]
@@ -86,7 +86,7 @@ Cursor:
 {
   "mcpServers": {
     "clawmind": {
-      "url": "https://your-mcp-deployment.vercel.app/api/mcp",
+      "url": "https://clawmind-mcp.vercel.app/api/mcp",
       "headers": {
         "X-MCP-Client-Id": "demo-client"
       }

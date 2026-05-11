@@ -1,7 +1,16 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import { MemoryRecord } from "@/lib/types";
 
 type MemoryPanelProps = {
   memories: MemoryRecord[];
+};
+
+type MemoryStats = {
+  totalRecords: number;
+  runtimeGeneratedCount: number;
+  seedCount: number;
 };
 
 function getSimilarityColor(score: number): string {
@@ -19,20 +28,77 @@ function getSimilarityLabel(score: number): string {
 }
 
 export function MemoryPanel({ memories }: MemoryPanelProps) {
+  const [memoryStats, setMemoryStats] = useState<MemoryStats | null>(null);
+  const retrievedCounts = useMemo(() => {
+    return memories.reduce(
+      (acc, memory) => {
+        if (memory.id.startsWith("mem_generated_")) {
+          acc.runtime += 1;
+        } else {
+          acc.seed += 1;
+        }
+
+        return acc;
+      },
+      { seed: 0, runtime: 0 },
+    );
+  }, [memories]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/judge")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.memory) {
+          setMemoryStats({
+            totalRecords: data.memory.totalRecords,
+            runtimeGeneratedCount: data.memory.runtimeGeneratedCount,
+            seedCount: data.memory.seedCount,
+          });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-      <div className="mb-5">
-        <h2 className="text-lg font-semibold text-zinc-100">
-          Relevant Memories Used
-        </h2>
-        <p className="mt-1 text-sm text-zinc-400">
-          Retrieved via embedding-based semantic similarity (all-MiniLM-L6-v2, 384-dim).
-          Higher similarity = more relevant to current task.
-        </p>
+    <section className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-surface)] p-5">
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs uppercase text-[var(--cm-text-muted)]">Persistent Memory</p>
+          <h2 className="mt-2 text-lg font-semibold text-[var(--cm-text-primary)]">
+            Memory retrieved for this task
+          </h2>
+          <p className="mt-1 text-sm text-[var(--cm-text-muted)]">
+            Embedding-based semantic similarity over the 0G-backed memory index.
+          </p>
+        </div>
+        <div className="grid gap-2 font-mono text-xs text-zinc-300 sm:grid-cols-3 lg:min-w-[360px]">
+          <div className="rounded-lg border border-[var(--cm-border)] px-3 py-2">
+            <p className="text-[var(--cm-text-muted)]">retrieved</p>
+            <p className="mt-1 text-base text-[var(--cm-text-primary)]">{memories.length}</p>
+          </div>
+          <div className="rounded-lg border border-[var(--cm-border)] px-3 py-2">
+            <p className="text-[var(--cm-text-muted)]">runtime</p>
+            <p className="mt-1 text-base text-[var(--cm-accent)]">{retrievedCounts.runtime}</p>
+          </div>
+          <div className="rounded-lg border border-[var(--cm-border)] px-3 py-2">
+            <p className="text-[var(--cm-text-muted)]">total</p>
+            <p className="mt-1 text-base text-[var(--cm-text-primary)]">
+              {memoryStats
+                ? `${memoryStats.seedCount} seed + ${memoryStats.runtimeGeneratedCount} runtime = ${memoryStats.totalRecords}`
+                : `${retrievedCounts.seed} seed + ${retrievedCounts.runtime} runtime`}
+            </p>
+          </div>
+        </div>
       </div>
 
       {memories.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-500">
+        <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4 text-sm text-[var(--cm-text-muted)]">
           No memory records used yet.
         </div>
       ) : (
@@ -49,7 +115,7 @@ export function MemoryPanel({ memories }: MemoryPanelProps) {
             return (
               <article
                 key={memory.id}
-                className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4"
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -60,6 +126,9 @@ export function MemoryPanel({ memories }: MemoryPanelProps) {
                       {/* Memory ID badge */}
                       <span className="inline-flex items-center rounded border border-white/5 bg-white/[0.03] px-1.5 py-px text-[8px] font-mono text-zinc-600">
                         {memory.id}
+                      </span>
+                      <span className="inline-flex items-center rounded border border-[var(--cm-border)] bg-white/[0.03] px-1.5 py-px text-[8px] font-mono text-[var(--cm-text-muted)]">
+                        {memory.id.startsWith("mem_generated_") ? "runtime" : "seed"}
                       </span>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-zinc-400">

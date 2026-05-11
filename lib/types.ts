@@ -45,6 +45,7 @@ export type RiskItem = {
 };
 
 export type Recommendation = "GO" | "NO_GO" | "INVESTIGATE_MORE";
+export type AnalysisSource = "web" | "mcp";
 
 export type AnalysisReport = {
   summary: string;
