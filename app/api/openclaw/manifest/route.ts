@@ -131,7 +131,7 @@ export async function GET(request: Request): Promise<NextResponse> {
                   domainSeparator: registryAuthStatus.domainSeparator,
                   operatorAddress: registryAuthStatus.operatorAddress,
                   operatorAuthorized: registryAuthStatus.operatorAuthorized,
-                  signatureVerified: false,
+                  signatureVerified: registryAuthStatus.mode === "SIGNED_OPERATOR_READY",
                 },
         },
         semanticMemory: {
