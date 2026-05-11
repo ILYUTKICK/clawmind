@@ -221,6 +221,14 @@ export default function HomePage() {
                   </span>
                 )}
                 <a
+                  href="/stats"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border border-teal-400/30 bg-teal-400/10 px-3 py-1 text-xs font-semibold text-teal-200 transition hover:bg-teal-400/20"
+                >
+                  Public Stats →
+                </a>
+                <a
                   href="/judge"
                   target="_blank"
                   rel="noreferrer"
