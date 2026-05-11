@@ -1,11 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { OnChainReceipt } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 type IntegrityPanelProps = {
   reportHash?: string;
@@ -15,7 +11,6 @@ type IntegrityPanelProps = {
 type VerifyResponse = {
   verified: boolean;
   error?: string;
-  network?: string;
   onChain?: {
     submitter: string;
     rootHash: string;
@@ -43,93 +38,128 @@ type VerifyResponse = {
     hasSubmitter: boolean;
     operatorSignatureVerified?: boolean;
   };
-  timestamp?: string;
 };
 
-type StepStatus = "verified" | "pending" | "mismatch";
+function shortenHash(value: string, head = 6, tail = 4): string {
+  if (!value || value.length <= head + tail + 5) {
+    return value;
+  }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function shortenHash(value: string, chars = 8): string {
-  if (!value || value.length <= chars * 2 + 3) return value;
-  return `${value.slice(0, chars + 2)}...${value.slice(-chars)}`;
+  return `${value.slice(0, head)}...${value.slice(-tail)}`;
 }
 
-// ---------------------------------------------------------------------------
-// Step indicator
-// ---------------------------------------------------------------------------
+function contractExplorerUrl(contractAddress: string | undefined, txUrl: string | undefined, verifyUrl: string | null | undefined): string | null {
+  if (verifyUrl) {
+    return verifyUrl;
+  }
 
-function StepIcon({ status }: { status: StepStatus }) {
-  if (status === "verified") {
-    return (
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-400/10 text-sm text-emerald-300">
-        ✓
-      </span>
-    );
+  if (contractAddress && txUrl) {
+    return txUrl.replace(/\/tx\/.*$/, `/address/${contractAddress}`);
   }
-  if (status === "mismatch") {
-    return (
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-400/30 bg-red-400/10 text-sm text-red-300">
-        ✗
-      </span>
-    );
-  }
-  return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-yellow-400/30 bg-yellow-400/10 text-sm text-yellow-300">
-      ◌
-    </span>
-  );
+
+  return null;
 }
 
-function StatusBadge({ status, label }: { status: StepStatus; label: string }) {
-  const classes: Record<StepStatus, string> = {
-    verified: "border-emerald-400/30 bg-emerald-400/10 text-emerald-200",
-    mismatch: "border-red-400/30 bg-red-400/10 text-red-200",
-    pending: "border-yellow-400/30 bg-yellow-400/10 text-yellow-200",
-  };
+function boolLabel(value: boolean | undefined): string {
+  if (value === true) {
+    return "verified by contract";
+  }
 
-  const icons: Record<StepStatus, string> = {
-    verified: "✓",
-    mismatch: "✗",
-    pending: "◌",
-  };
+  if (value === false) {
+    return "not verified";
+  }
 
+  return "pending";
+}
+
+function CopyButton({
+  value,
+  copied,
+  onCopy,
+}: {
+  value?: string;
+  copied: boolean;
+  onCopy: (value: string) => void;
+}) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${classes[status]}`}
+    <button
+      type="button"
+      disabled={!value}
+      onClick={() => value && onCopy(value)}
+      className="rounded-md border border-[var(--cm-border)] bg-white/[0.03] px-2 py-1 text-[11px] font-semibold text-[var(--cm-text-muted)] transition hover:border-[var(--cm-accent)] hover:text-teal-200 disabled:cursor-not-allowed disabled:opacity-40"
     >
-      <span>{icons[status]}</span>
-      <span>{label}</span>
-    </span>
+      {copied ? "copied" : "copy"}
+    </button>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Connector line between steps
-// ---------------------------------------------------------------------------
+function ReceiptRow({
+  label,
+  value,
+  copyValue,
+  actionHref,
+  actionLabel,
+  verified,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  value?: string;
+  copyValue?: string;
+  actionHref?: string | null;
+  actionLabel?: string;
+  verified?: boolean;
+  copied: boolean;
+  onCopy: (value: string) => void;
+}) {
+  const displayValue = value && value.length > 0 ? value : "pending";
 
-function ConnectorLine({ active }: { active: boolean }) {
   return (
-    <div className="ml-[13px] flex h-6 w-0.5 items-center">
-      <div
-        className={`h-full w-full rounded-full ${
-          active ? "bg-emerald-400/40" : "bg-white/10"
-        }`}
-      />
+    <div className="grid gap-2 border-b border-[var(--cm-border)] py-3 last:border-b-0 md:grid-cols-[132px_minmax(0,1fr)_auto] md:items-center">
+      <p className="text-[11px] font-semibold uppercase text-[var(--cm-text-muted)]">{label}</p>
+      <div className="min-w-0">
+        <p className="truncate [font-family:var(--cm-font-mono)] text-xs text-zinc-200">
+          {displayValue}
+        </p>
+        {typeof verified === "boolean" ? (
+          <p className={verified ? "mt-1 text-xs font-semibold text-[var(--cm-accent)]" : "mt-1 text-xs font-semibold text-[var(--cm-warning)]"}>
+            {verified ? "✓ verified by contract" : boolLabel(verified)}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-2">
+        <CopyButton value={copyValue ?? value} copied={copied} onCopy={onCopy} />
+        {actionHref ? (
+          <a
+            href={actionHref}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md border border-[var(--cm-accent)]/40 bg-[var(--cm-accent)]/10 px-2 py-1 text-[11px] font-semibold text-teal-200 transition hover:bg-[var(--cm-accent)]/20"
+          >
+            {actionLabel ?? "view ↗"}
+          </a>
+        ) : null}
+      </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// IntegrityPanel component
-// ---------------------------------------------------------------------------
+function CheckLine({ label, value }: { label: string; value?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--cm-border)] bg-black/20 px-3 py-2">
+      <span className="text-xs text-[var(--cm-text-muted)]">{label}</span>
+      <span className={value ? "font-mono text-xs text-[var(--cm-accent)]" : "font-mono text-xs text-[var(--cm-warning)]"}>
+        {value ? "pass" : "pending"}
+      </span>
+    </div>
+  );
+}
 
 export function IntegrityPanel({ reportHash, onChainReceipt }: IntegrityPanelProps) {
   const [verifyData, setVerifyData] = useState<VerifyResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,13 +168,14 @@ export function IntegrityPanel({ reportHash, onChainReceipt }: IntegrityPanelPro
       try {
         const res = await fetch("/api/verify");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: VerifyResponse = await res.json();
+        const data = (await res.json()) as VerifyResponse;
+
         if (!cancelled) {
           setVerifyData(data);
         }
-      } catch (err) {
+      } catch (error) {
         if (!cancelled) {
-          setFetchError(err instanceof Error ? err.message : "Failed to fetch");
+          setFetchError(error instanceof Error ? error.message : "Failed to fetch");
         }
       } finally {
         if (!cancelled) {
@@ -159,330 +190,124 @@ export function IntegrityPanel({ reportHash, onChainReceipt }: IntegrityPanelPro
     };
   }, []);
 
-  // Determine step statuses
-  const step1Status: StepStatus = reportHash ? "verified" : "pending";
-  const step2Status: StepStatus =
-    onChainReceipt && onChainReceipt.provider === "0G_CHAIN" && onChainReceipt.txHash
-      ? "verified"
-      : reportHash
-        ? "pending"
-        : "mismatch";
-
-  // Step 3: compare reportHash with on-chain rootHash if available
-  let step3Status: StepStatus = "pending";
-  if (reportHash && verifyData?.onChain?.rootHash) {
-    step3Status =
-      reportHash.toLowerCase() === verifyData.onChain.rootHash.toLowerCase()
-        ? "verified"
-        : "mismatch";
-  } else if (onChainReceipt?.txHash) {
-    // If we have a txHash, the report was at least submitted on-chain
-    step3Status = "verified";
+  async function copy(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(value);
+      window.setTimeout(() => setCopiedKey(null), 1_200);
+    } catch {
+      setCopiedKey(null);
+    }
   }
 
-  const step4Status: StepStatus =
-    verifyData?.verified && verifyData.integrityChecks
-      ? Object.values(verifyData.integrityChecks).every(Boolean)
-        ? "verified"
-        : "mismatch"
-      : step2Status === "verified"
-        ? "pending"
-        : "mismatch";
-
+  const taskHash = onChainReceipt?.taskHash ?? verifyData?.onChain?.taskHash ?? "";
+  const rootHash = verifyData?.onChain?.rootHash ?? reportHash ?? "";
+  const signedBy = onChainReceipt?.signedBy ?? verifyData?.onChain?.submitter ?? "";
+  const contractAddress = onChainReceipt?.contractAddress || verifyData?.contract?.address || "";
+  const txHash = onChainReceipt?.txHash ?? "";
+  const txUrl = onChainReceipt?.explorerTxUrl || "";
+  const contractUrl = contractExplorerUrl(contractAddress, txUrl, verifyData?.contract?.explorerUrl);
+  const registryMode = onChainReceipt?.registryMode ?? verifyData?.onChain?.registryMode ?? "pending";
+  const signatureVerified =
+    onChainReceipt?.signatureVerified ?? verifyData?.onChain?.signatureVerified;
   const allVerified =
-    step1Status === "verified" &&
-    step2Status === "verified" &&
-    step3Status === "verified" &&
-    step4Status === "verified";
-
-  const contractExplorerUrl = verifyData?.contract?.explorerUrl ?? null;
+    Boolean(rootHash) &&
+    Boolean(contractAddress) &&
+    Boolean(txHash || verifyData?.verified) &&
+    signatureVerified === true;
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-black/20 p-5">
-      {/* Header */}
-      <div className="mb-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-100">
-              Integrity Verification
-            </h2>
-            <p className="mt-1 text-sm text-zinc-400">
-              On-chain proof that report data has not been tampered with
-            </p>
-          </div>
-          {allVerified && (
-            <StatusBadge status="verified" label="VERIFIED" />
-          )}
+    <section className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-surface)] p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs uppercase text-[var(--cm-text-muted)]">Integrity Receipt</p>
+          <h2 className="mt-2 text-2xl font-semibold text-[var(--cm-text-primary)]">
+            {allVerified ? "Signed operator proof verified" : "On-chain proof pending"}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--cm-text-muted)]">
+            EIP-712 operator signature, 0G root hash, and registry metadata for the latest report.
+          </p>
+        </div>
+        <div className={allVerified ? "rounded-lg border border-[var(--cm-accent)]/40 bg-[var(--cm-accent)]/10 px-4 py-3 text-sm font-semibold text-teal-200" : "rounded-lg border border-[var(--cm-warning)]/40 bg-[var(--cm-warning)]/10 px-4 py-3 text-sm font-semibold text-amber-200"}>
+          {allVerified ? "✓ verified" : loading ? "checking" : "needs verification"}
         </div>
       </div>
 
-      {/* Verification chain — vertical flow */}
-      <div className="flex flex-col">
-        {/* Step 1: Report stored on 0G Storage */}
-        <div className="flex items-start gap-3">
-          <StepIcon status={step1Status} />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-zinc-200">
-              Report stored on 0G Storage
-            </p>
-            {reportHash ? (
-              <p className="mt-1 font-mono text-xs text-cyan-300/80 break-all">
-                {reportHash}
-              </p>
-            ) : (
-              <p className="mt-1 text-xs text-zinc-500">
-                No report hash available — run an analysis first
-              </p>
-            )}
-            <div className="mt-1.5">
-              <StatusBadge
-                status={step1Status}
-                label={step1Status === "verified" ? "STORED" : "PENDING"}
-              />
-            </div>
-          </div>
-        </div>
-
-        <ConnectorLine active={step1Status === "verified"} />
-
-        {/* Step 2: Hash registered on 0G Chain */}
-        <div className="flex items-start gap-3">
-          <StepIcon status={step2Status} />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-zinc-200">
-              Hash registered on 0G Chain
-            </p>
-            {verifyData?.onChain ? (
-              <div className="mt-1 space-y-1">
-                <p className="font-mono text-xs text-cyan-300/80 break-all">
-                  Root Hash: {shortenHash(verifyData.onChain.rootHash, 12)}
-                </p>
-                {verifyData.contract?.address && (
-                  <div className="flex items-center gap-2">
-                    <p className="font-mono text-xs text-zinc-400">
-                      Contract: {shortenHash(verifyData.contract.address, 6)}
-                    </p>
-                    {contractExplorerUrl && (
-                      <a
-                        href={contractExplorerUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-purple-300 underline decoration-purple-400/40 underline-offset-4 hover:text-purple-200"
-                      >
-                        View
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : onChainReceipt?.provider === "0G_CHAIN" ? (
-              <div className="mt-1 space-y-1">
-                <p className="font-mono text-xs text-cyan-300/80">
-                  Tx: {shortenHash(onChainReceipt.txHash, 12)}
-                </p>
-                <p className="font-mono text-xs text-zinc-400">
-                  Contract: {shortenHash(onChainReceipt.contractAddress, 6)}
-                </p>
-              </div>
-            ) : (
-              <p className="mt-1 text-xs text-zinc-500">
-                No on-chain registration found
-              </p>
-            )}
-            <div className="mt-1.5">
-              <StatusBadge
-                status={step2Status}
-                label={
-                  step2Status === "verified"
-                    ? "REGISTERED"
-                    : step2Status === "pending"
-                      ? "PENDING"
-                      : "NOT FOUND"
-                }
-              />
-            </div>
-          </div>
-        </div>
-
-        <ConnectorLine active={step2Status === "verified"} />
-
-        {/* Step 3: Hashes match */}
-        <div className="flex items-start gap-3">
-          <StepIcon status={step3Status} />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-zinc-200">
-              Hashes match
-            </p>
-            <p className="mt-1 text-xs text-zinc-400">
-              {step3Status === "verified"
-                ? "Report hash matches on-chain root hash — data integrity confirmed"
-                : step3Status === "mismatch"
-                  ? "Report hash does not match on-chain root hash — data may have been tampered with"
-                  : "Awaiting on-chain data for comparison"}
-            </p>
-            <div className="mt-1.5">
-              <StatusBadge
-                status={step3Status}
-                label={
-                  step3Status === "verified"
-                    ? "MATCH"
-                    : step3Status === "mismatch"
-                      ? "MISMATCH"
-                      : "PENDING"
-                }
-              />
-            </div>
-          </div>
-        </div>
-
-        <ConnectorLine active={step3Status === "verified"} />
-
-        {/* Step 4: Explorer verified */}
-        <div className="flex items-start gap-3">
-          <StepIcon status={step4Status} />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-zinc-200">
-              Explorer verified
-            </p>
-            {verifyData?.integrityChecks ? (
-              <div className="mt-2 grid grid-cols-2 gap-1.5">
-                {(
-                  Object.entries(verifyData.integrityChecks) as [
-                    string,
-                    boolean,
-                  ][]
-                ).map(([key, value]) => (
-                  <div
-                    key={key}
-                    className="flex items-center gap-1.5 text-xs"
-                  >
-                    <span
-                      className={
-                        value ? "text-emerald-300" : "text-red-300"
-                      }
-                    >
-                      {value ? "✓" : "✗"}
-                    </span>
-                    <span className="text-zinc-400">
-                      {key.replace(/([A-Z])/g, " $1").trim()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-1 text-xs text-zinc-500">
-                {loading
-                  ? "Loading on-chain verification data..."
-                  : fetchError
-                    ? `Could not verify: ${fetchError}`
-                    : "No on-chain data available for verification"}
-              </p>
-            )}
-            <div className="mt-1.5">
-              <StatusBadge
-                status={step4Status}
-                label={
-                  step4Status === "verified"
-                    ? "VERIFIED"
-                    : step4Status === "mismatch"
-                      ? "FAILED"
-                      : "PENDING"
-                }
-              />
-            </div>
-          </div>
-        </div>
+      <div className="mt-5 rounded-lg border border-[var(--cm-border)] bg-[#0d0d0f] p-4">
+        <ReceiptRow
+          label="task hash"
+          value={taskHash ? shortenHash(taskHash, 10, 6) : ""}
+          copyValue={taskHash}
+          copied={copiedKey === taskHash}
+          onCopy={copy}
+        />
+        <ReceiptRow
+          label="root hash"
+          value={rootHash ? shortenHash(rootHash, 10, 6) : ""}
+          copyValue={rootHash}
+          copied={copiedKey === rootHash}
+          onCopy={copy}
+        />
+        <ReceiptRow
+          label="signed by"
+          value={signedBy ? shortenHash(signedBy, 10, 4) : ""}
+          copyValue={signedBy}
+          verified={signatureVerified}
+          copied={copiedKey === signedBy}
+          onCopy={copy}
+        />
+        <ReceiptRow
+          label="contract"
+          value={contractAddress ? shortenHash(contractAddress, 10, 4) : ""}
+          copyValue={contractAddress}
+          actionHref={contractUrl}
+          actionLabel="explorer ↗"
+          copied={copiedKey === contractAddress}
+          onCopy={copy}
+        />
+        <ReceiptRow
+          label="tx"
+          value={txHash ? shortenHash(txHash, 10, 6) : ""}
+          copyValue={txHash}
+          actionHref={txUrl}
+          actionLabel="tx ↗"
+          copied={copiedKey === txHash}
+          onCopy={copy}
+        />
+        <ReceiptRow
+          label="registry mode"
+          value={registryMode}
+          copyValue={registryMode}
+          copied={copiedKey === registryMode}
+          onCopy={copy}
+        />
       </div>
 
-      {/* Footer with Explorer link and on-chain details */}
-      {(verifyData?.onChain || contractExplorerUrl) && (
-        <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
-          {verifyData?.onChain && (
-            <div className="mb-3 grid gap-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-500">Submitter</span>
-                <span className="font-mono text-zinc-300">
-                  {shortenHash(verifyData.onChain.submitter, 10)}
-                </span>
-              </div>
-              {verifyData.onChain.registryMode && (
-                <div className="flex items-center justify-between">
-                  <span className="text-zinc-500">Registry mode</span>
-                  <span className={verifyData.onChain.registryMode === "SIGNED_OPERATOR" ? "text-emerald-300" : "text-yellow-300"}>
-                    {verifyData.onChain.registryMode}
-                  </span>
-                </div>
-              )}
-              {verifyData.onChain.signatureVerified !== undefined && (
-                <div className="flex items-center justify-between">
-                  <span className="text-zinc-500">Operator signature</span>
-                  <span className={verifyData.onChain.signatureVerified ? "text-emerald-300" : "text-yellow-300"}>
-                    {verifyData.onChain.signatureVerified ? "Verified" : "Legacy"}
-                  </span>
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-500">Score</span>
-                <span className="text-zinc-300">{verifyData.onChain.score}/100</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-500">Recommendation</span>
-                <span
-                  className={
-                    verifyData.onChain.recommendation === "GO"
-                      ? "text-emerald-300"
-                      : verifyData.onChain.recommendation === "NO_GO"
-                        ? "text-red-300"
-                        : "text-yellow-300"
-                  }
-                >
-                  {verifyData.onChain.recommendation}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-500">Timestamp</span>
-                <span className="text-zinc-300">
-                  {verifyData.onChain.timestampReadable}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {contractExplorerUrl && (
-            <a
-              href={contractExplorerUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-4 py-2 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/10"
-            >
-              <span>Verify on Explorer</span>
-              <span className="text-xs text-cyan-300/60">↗</span>
-            </a>
-          )}
+      {verifyData?.integrityChecks ? (
+        <div className="mt-4 grid gap-2 md:grid-cols-3">
+          <CheckLine label="Root hash format" value={verifyData.integrityChecks.rootHashFormat} />
+          <CheckLine label="Score range" value={verifyData.integrityChecks.scoreRange} />
+          <CheckLine label="Recommendation" value={verifyData.integrityChecks.validRecommendation} />
+          <CheckLine label="Storage URI" value={verifyData.integrityChecks.hasStorageUri} />
+          <CheckLine label="Submitter" value={verifyData.integrityChecks.hasSubmitter} />
+          <CheckLine
+            label="Operator signature"
+            value={verifyData.integrityChecks.operatorSignatureVerified ?? signatureVerified}
+          />
         </div>
-      )}
+      ) : null}
 
-      {/* Loading state */}
-      {loading && (
-        <div className="mt-4 flex items-center gap-2 text-xs text-zinc-500">
-          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-          <span>Fetching on-chain verification data...</span>
-        </div>
-      )}
-
-      {/* Error state */}
-      {!loading && fetchError && (
-        <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 p-3 text-xs text-red-200">
+      {!loading && fetchError ? (
+        <div className="mt-4 rounded-lg border border-[var(--cm-warning)]/40 bg-[var(--cm-warning)]/10 p-3 text-xs text-amber-200">
           Verification fetch failed: {fetchError}
         </div>
-      )}
+      ) : null}
 
-      {/* Not configured state */}
-      {!loading && !fetchError && verifyData && !verifyData.verified && verifyData.error && (
-        <div className="mt-4 rounded-xl border border-yellow-400/20 bg-yellow-400/5 p-3 text-xs text-yellow-200">
+      {!loading && !fetchError && verifyData?.error ? (
+        <div className="mt-4 rounded-lg border border-[var(--cm-warning)]/40 bg-[var(--cm-warning)]/10 p-3 text-xs text-amber-200">
           {verifyData.error}
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

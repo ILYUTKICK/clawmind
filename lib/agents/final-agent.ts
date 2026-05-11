@@ -233,7 +233,7 @@ function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
     };
   }
 
-  const custodyOrExecution = hasAny(allText, [
+  const taskCustodyOrExecution = hasAny(taskText, [
     /\bself-custodial\b/,
     /\bcustody\b/,
     /\buser funds\b/,
@@ -241,7 +241,7 @@ function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
     /\bdelegated wallet\b/,
     /\bsign(?:s|ing)? transactions\b/,
   ]);
-  const missingGuards = hasAny(allText, [
+  const taskMissingGuards = hasAny(taskText, [
     /\bno withdrawal guards?\b/,
     /\bwithout withdrawal guards?\b/,
     /\bno guardrails?\b/,
@@ -250,7 +250,7 @@ function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
     /\bprivate key\b/,
   ]);
 
-  if (custodyOrExecution && missingGuards) {
+  if (taskCustodyOrExecution && taskMissingGuards) {
     return {
       kind: "high_risk_custody",
       label: "High-risk custody or autonomous execution",
@@ -260,23 +260,28 @@ function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
     };
   }
 
-  const matureProtocol = hasAny(allText, [
+  const matureProtocol = hasAny(taskText, [
     /\buniswap v3 fork\b/,
     /\bwell-audited\b/,
     /\baudited (?:2x|twice|by 2|by two)\b/,
+    /\btwo independent audits?\b/,
+    /\b2 independent audits?\b/,
+    /\btwo audits?\b/,
     /\bmature protocol\b/,
     /\b100m tvl\b/,
     /\$100m\b/,
   ]);
-  const explicitSafety = hasAny(allText, [
+  const explicitSafety = hasAny(taskText, [
     /\bno oracle dependency\b/,
     /\bno external oracle\b/,
     /\bnon-custodial\b/,
     /\bno custody\b/,
+    /\bguarded admin controls?\b/,
+    /\bguarded admin\b/,
     /\bgovernance active\b/,
   ]);
 
-  if (matureProtocol && explicitSafety && !missingGuards) {
+  if (matureProtocol && explicitSafety && !taskMissingGuards) {
     return {
       kind: "mature_safe",
       label: "Mature audited protocol with explicit safety constraints",
@@ -417,11 +422,26 @@ function isCriticChallengeResolved(input: FinalAgentInput, challenge: CriticChal
   }
 
   if (challengeMatches([/\b(audit|audited|formal verification)\b/])) {
-    return factsHave([/\bwell-audited\b/, /\baudited (?:2x|twice|by 2|by two)\b/, /\bformal verification\b/]);
+    return factsHave([
+      /\bwell-audited\b/,
+      /\baudited (?:2x|twice|by 2|by two)\b/,
+      /\btwo independent audits?\b/,
+      /\b2 independent audits?\b/,
+      /\btwo audits?\b/,
+      /\bformal verification\b/,
+    ]);
   }
 
   if (challengeMatches([/\b(governance|admin|upgrade)\b/])) {
-    return factsHave([/\btimelock\b/, /\bgovernance active\b/, /\bdao\b/]) && !factsHave([/\badmin key\b/]);
+    return (
+      factsHave([
+        /\btimelock\b/,
+        /\bgovernance active\b/,
+        /\bdao\b/,
+        /\bguarded admin controls?\b/,
+        /\bguarded admin\b/,
+      ]) && !factsHave([/\badmin key\b/, /\bunrestricted admin\b/])
+    );
   }
 
   if (challengeMatches([/\b(liquidity|tvl|market depth)\b/])) {

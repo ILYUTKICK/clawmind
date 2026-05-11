@@ -8,748 +8,495 @@ type AdversarialPanelProps = {
   report?: AnalysisReport;
 };
 
-/* -------------------------------------------------------------------------- */
-/*  Constants                                                                  */
-/* -------------------------------------------------------------------------- */
+type ChallengeSeverity = "high" | "medium" | "low";
+type ChallengeStatus = "resolved" | "unresolved" | "pending";
+
+type ChallengeRow = {
+  id: string;
+  agentName: AgentStep["name"];
+  agentLabel: string;
+  severity: ChallengeSeverity;
+  summary: string;
+  explanation: string;
+  status: ChallengeStatus;
+};
 
 const CHALLENGED_AGENTS: {
   name: AgentStep["name"];
-  icon: string;
   label: string;
-  accentBorder: string;
-  accentText: string;
-  accentBg: string;
+  token: string;
 }[] = [
-  {
-    name: "planner",
-    icon: "📋",
-    label: "Planner",
-    accentBorder: "border-purple-400/30",
-    accentText: "text-purple-300",
-    accentBg: "bg-purple-400/10",
-  },
-  {
-    name: "researcher",
-    icon: "🔍",
-    label: "Researcher",
-    accentBorder: "border-blue-400/30",
-    accentText: "text-blue-300",
-    accentBg: "bg-blue-400/10",
-  },
-  {
-    name: "risk_agent",
-    icon: "⚡",
-    label: "Risk Agent",
-    accentBorder: "border-amber-400/30",
-    accentText: "text-amber-300",
-    accentBg: "bg-amber-400/10",
-  },
-  {
-    name: "architect",
-    icon: "🏗️",
-    label: "Architect",
-    accentBorder: "border-emerald-400/30",
-    accentText: "text-emerald-300",
-    accentBg: "bg-emerald-400/10",
-  },
+  { name: "planner", label: "Planner", token: "PL" },
+  { name: "researcher", label: "Researcher", token: "RS" },
+  { name: "risk_agent", label: "Risk Agent", token: "RK" },
+  { name: "architect", label: "Architect", token: "AR" },
 ];
 
-/* -------------------------------------------------------------------------- */
-/*  Helpers                                                                    */
-/* -------------------------------------------------------------------------- */
+const SEVERITY_META: Record<
+  ChallengeSeverity,
+  { label: string; penalty: number; className: string; title: string }
+> = {
+  high: {
+    label: "High",
+    penalty: 15,
+    className: "border-[var(--cm-critical)]/40 bg-[var(--cm-critical)]/10 text-red-200",
+    title: "HIGH unresolved challenge lowers the final score by 15 points.",
+  },
+  medium: {
+    label: "Medium",
+    penalty: 7,
+    className: "border-[var(--cm-warning)]/40 bg-[var(--cm-warning)]/10 text-amber-200",
+    title: "MEDIUM unresolved challenge lowers the final score by 7 points.",
+  },
+  low: {
+    label: "Low",
+    penalty: 3,
+    className: "border-[var(--cm-border)] bg-white/[0.03] text-zinc-300",
+    title: "LOW unresolved challenge lowers the final score by 3 points.",
+  },
+};
 
-/** Extract the first 1–2 sentences as a "key claim" summary. */
-function extractClaim(text: string, maxLen = 180): string {
-  if (!text) return "No claim produced";
+function truncate(text: string, maxLen: number): string {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+
+  if (cleaned.length <= maxLen) {
+    return cleaned;
+  }
+
+  return `${cleaned.slice(0, maxLen).trimEnd()}...`;
+}
+
+function normalizeSeverity(value: unknown): ChallengeSeverity {
+  const normalized = typeof value === "string" ? value.toLowerCase() : "";
+
+  if (normalized === "high" || normalized === "medium" || normalized === "low") {
+    return normalized;
+  }
+
+  return "medium";
+}
+
+function extractClaim(text: string | undefined, maxLen = 190): string {
+  if (!text) {
+    return "Waiting for analysis.";
+  }
+
   const cleaned = text.replace(/\n+/g, " ").trim();
-  // Try to grab the first meaningful sentence (up to maxLen)
   const firstPeriod = cleaned.indexOf(". ");
+
   if (firstPeriod > 0 && firstPeriod < maxLen) {
     return cleaned.slice(0, firstPeriod + 1);
   }
-  if (cleaned.length <= maxLen) return cleaned;
-  return cleaned.slice(0, maxLen).trimEnd() + "…";
+
+  return truncate(cleaned, maxLen);
 }
 
-/**
- * Parse the critic output into per-agent challenges.
- * Now handles both structured JSON (new format) and legacy text format.
- */
-function extractChallenges(
-  criticOutput: string | undefined,
-  agentNames: string[]
-): Map<string, string> {
-  const challenges = new Map<string, string>();
+function tryParseCriticOutput(criticOutput: string | undefined): CriticOutput | null {
+  if (!criticOutput) {
+    return null;
+  }
 
-  if (!criticOutput) return challenges;
-
-  // Try to parse as structured JSON first (new format)
   try {
-    const parsed = JSON.parse(criticOutput) as CriticOutput;
-    if (parsed.challenges && Array.isArray(parsed.challenges)) {
-      // Map challenges to agents based on challenge content
-      for (const challenge of parsed.challenges) {
-        // Try to match challenge to an agent based on keywords in the challenge text
-        let matchedAgent = null;
-        const challengeText = challenge.challenge.toLowerCase();
+    const parsed = JSON.parse(criticOutput) as Partial<CriticOutput>;
 
-        for (const agentName of agentNames) {
-          const agentLabel = CHALLENGED_AGENTS.find((a) => a.name === agentName)?.label.toLowerCase();
-          if (agentLabel && challengeText.includes(agentLabel)) {
-            matchedAgent = agentName;
-            break;
-          }
-        }
-
-        // If no specific agent matched, assign to the first agent that doesn't have a challenge yet
-        if (!matchedAgent) {
-          for (const agentName of agentNames) {
-            if (!challenges.has(agentName)) {
-              matchedAgent = agentName;
-              break;
-            }
-          }
-        }
-
-        // If we found an agent to assign to, add the challenge
-        if (matchedAgent) {
-          const displayText = `${challenge.challenge} (${challenge.severity} severity)`;
-          challenges.set(matchedAgent, displayText.length > 220 ? displayText.slice(0, 220).trimEnd() + "…" : displayText);
-        }
-      }
-      return challenges;
+    if (!Array.isArray(parsed.challenges)) {
+      return null;
     }
+
+    return {
+      challenges: parsed.challenges
+        .filter((challenge) => typeof challenge?.challenge === "string")
+        .map((challenge) => ({
+          challenge: challenge.challenge,
+          severity: normalizeSeverity(challenge.severity),
+          explanation:
+            typeof challenge.explanation === "string"
+              ? challenge.explanation
+              : "The critic flagged this issue for final-agent reconciliation.",
+        })),
+      summary:
+        typeof parsed.summary === "string"
+          ? parsed.summary
+          : "Critic found material challenges.",
+    };
   } catch {
-    // Not JSON, fall back to legacy text parsing
+    return null;
   }
-
-  // Legacy text parsing (fallback for old format)
-  // Build a list of label variants for matching
-  const agentLabels = agentNames.map((name) => {
-    const label = CHALLENGED_AGENTS.find((a) => a.name === name)?.label ?? name;
-    return { name, label, variants: [label, name] };
-  });
-
-  // Strategy 1: Try to find sections delimited by agent names
-  // Works with formats like:
-  //   "**Planner**: ..." or "### Planner" or "1. Planner:" or "Planner - ..."
-  for (const { name, label } of agentLabels) {
-    // Try multiple regex patterns to find the section for this agent
-    const patterns = [
-      // **Planner** or **Planner:** or **Planner**:
-      new RegExp(`\\*\\*${label}[:\\s]*\\*\\*[:\\s]*(.*?)(?=\\*\\*(?:Planner|Researcher|Risk Agent|Risk|Architect)\\s*\\*\\*|$)`, "is"),
-      // ### Planner or ## Planner
-      new RegExp(`#{1,3}\\s*${label}[:\\s]*(.*?)(?=#{1,3}\\s*(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
-      // Planner: or Planner -
-      new RegExp(`(?:^|\\n)\\s*${label}[:\\s-]+(.*?)(?=(?:^|\\n)\\s*(?:Planner|Researcher|Risk Agent|Risk|Architect)[:\\s-]|$)`, "is"),
-      // Numbered list: 1. **Planner**: or 1. Planner:
-      new RegExp(`\\d+\\.\\s*\\*{0,2}${label}\\*{0,2}[:\\s]*(.*?)(?=\\d+\\.\\s*\\*{0,2}(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
-      // "Critique of Planner:" or "vs Planner:"
-      new RegExp(`(?:Critique|Review|Challenge|vs)[\\s]+(?:of|on|against)?[\\s]*${label}[:\\s]*(.*?)(?=(?:Critique|Review|Challenge|vs)[\\s]+(?:of|on|against)?[\\s]*(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
-    ];
-
-    for (const pat of patterns) {
-      const m = criticOutput.match(pat);
-      if (m && m[1] && m[1].trim().length > 10) {
-        const text = m[1].trim();
-        challenges.set(name, text.length > 220 ? text.slice(0, 220).trimEnd() + "…" : text);
-        break;
-      }
-    }
-  }
-
-  // Strategy 2: If some agents were found but not all, try splitting by numbered sections
-  if (challenges.size > 0 && challenges.size < agentLabels.length) {
-    // Already partially found — leave as is
-  } else if (challenges.size === 0) {
-    // Strategy 3: Split the whole output into chunks and assign to agents
-    const lines = criticOutput.split(/\n+/).filter((l) => l.trim().length > 5);
-
-    if (lines.length >= agentLabels.length) {
-      // Try to match each line to an agent by looking for agent names
-      for (const { name, label } of agentLabels) {
-        for (const line of lines) {
-          if (
-            line.toLowerCase().includes(label.toLowerCase()) &&
-            !challenges.has(name)
-          ) {
-            const text = line.replace(/^[*\d.\-#\s]+/, "").trim();
-            if (text.length > 10) {
-              challenges.set(name, text.length > 220 ? text.slice(0, 220).trimEnd() + "…" : text);
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    // Strategy 4: If still nothing, distribute the whole output as a general challenge
-    if (challenges.size === 0) {
-      const summary = extractClaim(criticOutput, 280);
-      for (const name of agentNames) {
-        challenges.set(name, summary);
-      }
-    }
-  }
-
-  return challenges;
 }
 
-/**
- * Parse the final_agent output for reconciliation/resolution text per agent.
- */
+function matchAgentIndex(challengeText: string, used: Set<number>): number {
+  const lower = challengeText.toLowerCase();
+  const directMatch = CHALLENGED_AGENTS.findIndex((agent) =>
+    lower.includes(agent.label.toLowerCase()) || lower.includes(agent.name.replace("_", " ")),
+  );
+
+  if (directMatch >= 0 && !used.has(directMatch)) {
+    return directMatch;
+  }
+
+  const available = CHALLENGED_AGENTS.findIndex((_, index) => !used.has(index));
+  return available >= 0 ? available : 0;
+}
+
+function buildChallengeRows(
+  criticOutput: string | undefined,
+  criticAdjustment: AnalysisReport["criticAdjustment"],
+  finalCompleted: boolean,
+): ChallengeRow[] {
+  const parsed = tryParseCriticOutput(criticOutput);
+
+  if (!parsed || parsed.challenges.length === 0) {
+    return [];
+  }
+
+  const unresolvedBudget: Record<ChallengeSeverity, number> = {
+    high: criticAdjustment?.unresolvedHigh ?? 0,
+    medium: criticAdjustment?.unresolvedMedium ?? 0,
+    low: criticAdjustment?.unresolvedLow ?? 0,
+  };
+  const usedAgents = new Set<number>();
+
+  return parsed.challenges.map((challenge, index) => {
+    const severity = normalizeSeverity(challenge.severity);
+    const agentIndex = matchAgentIndex(challenge.challenge, usedAgents);
+    const agent = CHALLENGED_AGENTS[agentIndex] ?? CHALLENGED_AGENTS[0];
+
+    usedAgents.add(agentIndex);
+
+    let status: ChallengeStatus = "pending";
+
+    if (finalCompleted) {
+      const isUnresolved = unresolvedBudget[severity] > 0;
+      status = isUnresolved ? "unresolved" : "resolved";
+
+      if (isUnresolved) {
+        unresolvedBudget[severity] -= 1;
+      }
+    }
+
+    return {
+      id: `${agent.name}-${index}`,
+      agentName: agent.name,
+      agentLabel: agent.label,
+      severity,
+      summary: truncate(challenge.challenge, 180),
+      explanation: truncate(challenge.explanation, 220),
+      status,
+    };
+  });
+}
+
 function extractPerAgentResolution(
   finalOutput: string | undefined,
-  agentName: string
-): string | null {
-  if (!finalOutput) return null;
-  const label = CHALLENGED_AGENTS.find((a) => a.name === agentName)?.label ?? agentName;
+  agentName: AgentStep["name"],
+): string {
+  if (!finalOutput) {
+    return "Final synthesis has not completed yet.";
+  }
 
-  // Try multiple patterns
+  const label = CHALLENGED_AGENTS.find((agent) => agent.name === agentName)?.label ?? agentName;
   const patterns = [
-    // **Planner** or **Planner:** followed by content
-    new RegExp(`\\*\\*${label}[:\\s]*\\*\\*[:\\s]*(.*?)(?=\\*\\*(?:Planner|Researcher|Risk Agent|Risk|Architect)\\s*\\*\\*|$)`, "is"),
-    // ### Planner or ## Planner
-    new RegExp(`#{1,3}\\s*${label}[:\\s]*(.*?)(?=#{1,3}\\s*(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
-    // Planner: or Planner -
-    new RegExp(`${label}[:\\s-]+(.*?)(?=(?:Planner|Researcher|Risk Agent|Risk|Architect)[:\\s-]|$)`, "is"),
-    // Numbered list: 1. **Planner**:
-    new RegExp(`\\d+\\.\\s*\\*{0,2}${label}\\*{0,2}[:\\s]*(.*?)(?=\\d+\\.\\s*\\*{0,2}(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
-    // "Reconciliation for Planner:" or "Resolution - Planner:"
-    new RegExp(`(?:Reconciliation|Resolution|Addressed|Resolved)[\\s]+(?:for|on|against|with)?[\\s]*${label}[:\\s]*(.*?)(?=(?:Reconciliation|Resolution|Addressed|Resolved)[\\s]+(?:for|on|against|with)?[\\s]*(?:Planner|Researcher|Risk Agent|Risk|Architect)|$)`, "is"),
+    new RegExp(`\\*\\*${label}[:\\s]*\\*\\*[:\\s]*(.*?)(?=\\*\\*(?:Planner|Researcher|Risk Agent|Architect)\\s*\\*\\*|$)`, "is"),
+    new RegExp(`#{1,3}\\s*${label}[:\\s]*(.*?)(?=#{1,3}\\s*(?:Planner|Researcher|Risk Agent|Architect)|$)`, "is"),
+    new RegExp(`${label}[:\\s-]+(.*?)(?=(?:Planner|Researcher|Risk Agent|Architect)[:\\s-]|$)`, "is"),
   ];
 
-  for (const pat of patterns) {
-    const m = finalOutput.match(pat);
-    if (m && m[1] && m[1].trim().length > 10) {
-      const text = m[1].trim();
-      return text.length > 180 ? text.slice(0, 180).trimEnd() + "…" : text;
+  for (const pattern of patterns) {
+    const match = finalOutput.match(pattern);
+
+    if (match?.[1] && match[1].trim().length > 10) {
+      return truncate(match[1], 190);
     }
   }
 
-  return null;
+  return truncate(finalOutput, 190);
 }
 
-/**
- * Extract a general resolution summary from the final agent output.
- */
-function extractResolution(finalOutput: string | undefined): string {
-  if (!finalOutput) return "Pending final synthesis";
-  const cleaned = finalOutput.replace(/\n+/g, " ").trim();
-  if (cleaned.length <= 300) return cleaned;
-  return cleaned.slice(0, 300).trimEnd() + "…";
+function recommendationClass(recommendation: AnalysisReport["recommendation"] | undefined): string {
+  if (recommendation === "GO") {
+    return "border-[var(--cm-accent)]/40 bg-[var(--cm-accent)]/10 text-teal-200";
+  }
+
+  if (recommendation === "NO_GO") {
+    return "border-[var(--cm-critical)]/40 bg-[var(--cm-critical)]/10 text-red-200";
+  }
+
+  return "border-[var(--cm-warning)]/40 bg-[var(--cm-warning)]/10 text-amber-200";
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Sub-components                                                             */
-/* -------------------------------------------------------------------------- */
+function statusClass(status: ChallengeStatus): string {
+  if (status === "resolved") {
+    return "border-[var(--cm-accent)]/40 bg-[var(--cm-accent)]/10 text-teal-200";
+  }
 
-function PlaceholderCard({ label, icon }: { label: string; icon: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 opacity-40">
-      <div className="flex items-center gap-2.5 mb-2">
-        <span className="text-base leading-none">{icon}</span>
-        <span className="text-sm font-semibold text-zinc-400">{label}</span>
-      </div>
-      <p className="text-xs text-zinc-600 italic">Waiting for analysis…</p>
-    </div>
-  );
+  if (status === "unresolved") {
+    return "border-[var(--cm-critical)]/40 bg-[var(--cm-critical)]/10 text-red-200";
+  }
+
+  return "border-[var(--cm-border)] bg-white/[0.03] text-[var(--cm-text-muted)]";
 }
 
-function ClaimCard({
-  icon,
+function Metric({
   label,
-  claim,
-  accentBorder,
-  accentText,
-  accentBg,
+  value,
+  tone = "neutral",
 }: {
-  icon: string;
   label: string;
-  claim: string;
-  accentBorder: string;
-  accentText: string;
-  accentBg: string;
+  value: string | number;
+  tone?: "neutral" | "accent" | "critical" | "warning";
 }) {
+  const toneClass = {
+    neutral: "text-[var(--cm-text-primary)]",
+    accent: "text-[var(--cm-accent)]",
+    critical: "text-[var(--cm-critical)]",
+    warning: "text-[var(--cm-warning)]",
+  }[tone];
+
   return (
-    <div
-      className={`rounded-2xl border ${accentBorder} ${accentBg} p-4 transition-all duration-300 hover:border-opacity-60`}
-    >
-      <div className="flex items-center gap-2.5 mb-2">
-        <span className="text-base leading-none">{icon}</span>
-        <span className={`text-sm font-bold ${accentText}`}>{label}</span>
-      </div>
-      <p className="text-xs text-zinc-300 leading-relaxed">{claim}</p>
+    <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-3">
+      <p className="text-[11px] uppercase text-[var(--cm-text-muted)]">{label}</p>
+      <p className={`mt-1 font-mono text-xl font-semibold ${toneClass}`}>{value}</p>
     </div>
   );
 }
 
-function ChallengeCard({
-  agentLabel,
-  challenge,
-}: {
-  agentLabel: string;
-  challenge: string;
-}) {
+function SeverityBadge({ severity }: { severity: ChallengeSeverity }) {
+  const meta = SEVERITY_META[severity];
+
   return (
-    <div className="rounded-2xl border border-red-400/20 bg-red-400/[0.04] p-4 transition-all duration-300 hover:border-red-400/30">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-base leading-none">🔎</span>
-        <span className="text-sm font-bold text-red-200">Critic</span>
-        <span className="rounded-full border border-red-400/30 bg-red-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-200">
-          CHALLENGED
+    <span
+      title={meta.title}
+      className={`inline-flex items-center rounded-md border px-2 py-1 text-[11px] font-semibold ${meta.className}`}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: ChallengeStatus }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-md border px-2 py-1 text-[11px] font-semibold uppercase ${statusClass(status)}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+function ScoreMath({
+  report,
+  challengeRows,
+}: {
+  report?: AnalysisReport;
+  challengeRows: ChallengeRow[];
+}) {
+  const adjustment = report?.criticAdjustment;
+  const highPenalty = (adjustment?.unresolvedHigh ?? 0) * SEVERITY_META.high.penalty;
+  const mediumPenalty = (adjustment?.unresolvedMedium ?? 0) * SEVERITY_META.medium.penalty;
+  const lowPenalty = (adjustment?.unresolvedLow ?? 0) * SEVERITY_META.low.penalty;
+  const baseScore = adjustment?.baseScore ?? report?.score ?? 0;
+  const finalScore = adjustment?.finalScore ?? report?.score ?? 0;
+  const recommendation = report?.recommendation ?? "INVESTIGATE_MORE";
+
+  return (
+    <div className="rounded-lg border border-[var(--cm-border)] bg-[#0d0d0f] p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-[var(--cm-text-primary)]">Score adjustment</p>
+        <span className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${recommendationClass(recommendation)}`}>
+          {recommendation}
         </span>
       </div>
-      <p className="text-xs text-zinc-400 leading-relaxed">
-        <span className="text-zinc-500 font-medium">vs {agentLabel}:</span>{" "}
-        {challenge}
-      </p>
+      <pre className="overflow-x-auto whitespace-pre text-xs leading-6 text-zinc-300 [font-family:var(--cm-font-mono)]">
+{`Initial score:       ${String(baseScore).padStart(3, " ")}
+High severity:      -${String(highPenalty).padStart(2, " ")}
+Medium severity:    -${String(mediumPenalty).padStart(2, " ")}
+Low severity:       -${String(lowPenalty).padStart(2, " ")}
+Final score:         ${String(finalScore).padStart(3, " ")} -> ${recommendation}`}
+      </pre>
+      {adjustment?.math ? (
+        <p className="mt-3 border-t border-[var(--cm-border)] pt-3 font-mono text-[11px] leading-5 text-[var(--cm-text-muted)]">
+          {adjustment.math}
+        </p>
+      ) : challengeRows.length > 0 ? (
+        <p className="mt-3 border-t border-[var(--cm-border)] pt-3 text-xs text-[var(--cm-text-muted)]">
+          Waiting for the Final Agent to publish score math.
+        </p>
+      ) : null}
     </div>
   );
 }
-
-function ResolutionRow({
-  agentLabel,
-  agentIcon,
-  resolution,
-  accentBorder,
-}: {
-  agentLabel: string;
-  agentIcon: string;
-  resolution: string;
-  accentBorder: string;
-}) {
-  return (
-    <div
-      className={`flex items-start gap-3 rounded-2xl border ${accentBorder} bg-black/20 p-4`}
-    >
-      <span className="text-base leading-none mt-0.5">{agentIcon}</span>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="text-sm font-bold text-white">{agentLabel}</span>
-          <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200">
-            RESOLVED
-          </span>
-        </div>
-        <p className="text-xs text-zinc-400 leading-relaxed">{resolution}</p>
-      </div>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Main component                                                             */
-/* -------------------------------------------------------------------------- */
 
 export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
-  const stepMap = new Map(steps.map((s) => [s.name, s]));
+  const stepMap = new Map(steps.map((step) => [step.name, step]));
   const criticStep = stepMap.get("critic");
   const finalStep = stepMap.get("final_agent");
   const hasAnalysis = steps.length > 0;
   const criticCompleted = criticStep?.status === "completed";
   const finalCompleted = finalStep?.status === "completed";
-  const agentNames = CHALLENGED_AGENTS.map((a) => a.name);
-
-  // Extract data from steps
-  const challenges = extractChallenges(
-    criticStep?.output,
-    agentNames
-  );
-
-  const finalResolution = extractResolution(finalStep?.output);
-
-  // Count challenged & resolved
-  const challengedCount = criticCompleted
-    ? CHALLENGED_AGENTS.filter((a) => challenges.has(a.name)).length
-    : 0;
-  const fallbackResolvedCount = finalCompleted
-    ? CHALLENGED_AGENTS.filter(
-        (a) => challenges.has(a.name)
-      ).length
-    : 0;
   const criticAdjustment = report?.criticAdjustment;
-  const totalChallengeCount = criticAdjustment?.totalChallenges ?? challengedCount;
-  const resolvedCount = finalCompleted
-    ? criticAdjustment?.resolvedChallenges ?? fallbackResolvedCount
-    : 0;
-  const unresolvedCount = criticAdjustment?.unresolvedChallenges ?? Math.max(0, totalChallengeCount - resolvedCount);
+  const challengeRows = buildChallengeRows(criticStep?.output, criticAdjustment, finalCompleted);
+  const totalChallengeCount = criticAdjustment?.totalChallenges ?? challengeRows.length;
+  const resolvedCount =
+    finalCompleted
+      ? criticAdjustment?.resolvedChallenges ?? challengeRows.filter((row) => row.status === "resolved").length
+      : 0;
+  const unresolvedCount =
+    criticAdjustment?.unresolvedChallenges ??
+    (finalCompleted ? challengeRows.filter((row) => row.status === "unresolved").length : totalChallengeCount);
   const scorePenalty = criticAdjustment?.penalty ?? 0;
-
-  /* ---------------------------------------------------------------------- */
-  /*  Empty / placeholder state                                              */
-  /* ---------------------------------------------------------------------- */
+  const criticalOpen = (criticAdjustment?.unresolvedHigh ?? 0) > 0 || challengeRows.some((row) => row.status === "unresolved" && row.severity === "high");
+  const headerTone = criticalOpen ? "text-[var(--cm-critical)]" : totalChallengeCount > 0 ? "text-[var(--cm-warning)]" : "text-[var(--cm-accent)]";
 
   if (!hasAnalysis) {
     return (
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-        <div className="mb-5">
-          <h2 className="text-lg font-bold text-white">Adversarial Review</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Critic Agent challenges assumptions from Planner, Researcher, Risk,
-            and Architect agents
+      <section className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-surface)] p-5">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs uppercase text-[var(--cm-text-muted)]">Adversarial Review</p>
+          <h2 className="text-2xl font-semibold text-[var(--cm-text-primary)]">
+            Critic raised 0 challenges
+          </h2>
+          <p className="max-w-2xl text-sm leading-6 text-[var(--cm-text-muted)]">
+            Run an analysis to see critic challenges, final-agent resolutions, and score adjustment math.
           </p>
         </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Left: Agent Claims placeholders */}
-          <div>
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-zinc-500">
-              Agent Claims
-            </h3>
-            <div className="space-y-3">
-              {CHALLENGED_AGENTS.map((a) => (
-                <PlaceholderCard key={a.name} label={a.label} icon={a.icon} />
-              ))}
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
+          {CHALLENGED_AGENTS.map((agent) => (
+            <div key={agent.name} className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4 opacity-60">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--cm-border)] font-mono text-xs text-[var(--cm-text-muted)]">
+                {agent.token}
+              </span>
+              <p className="mt-3 text-sm font-semibold text-zinc-300">{agent.label}</p>
+              <p className="mt-1 text-xs text-[var(--cm-text-muted)]">Waiting for claim.</p>
             </div>
-          </div>
-
-          {/* Right: Critic Challenges placeholders */}
-          <div>
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-zinc-500">
-              Critic Challenges
-            </h3>
-            <div className="space-y-3">
-              {CHALLENGED_AGENTS.map((a) => (
-                <PlaceholderCard key={a.name} label={`vs ${a.label}`} icon="🔎" />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Reconciliation placeholder */}
-        <div className="mt-5 rounded-2xl border border-white/5 bg-black/20 p-4 text-center">
-          <p className="text-xs text-zinc-600 italic">
-            Reconciliation will appear after the Final Agent completes synthesis.
-          </p>
+          ))}
         </div>
       </section>
     );
   }
 
-  /* ---------------------------------------------------------------------- */
-  /*  Active state — show the battle                                         */
-  /* ---------------------------------------------------------------------- */
-
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-      {/* Header */}
-      <div className="mb-5">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h2 className="text-lg font-bold text-white">Adversarial Review</h2>
-          {criticCompleted && (
-            <span className="rounded-full border border-red-400/30 bg-red-400/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-200">
-              {totalChallengeCount} Challenge{totalChallengeCount !== 1 ? "s" : ""}
-            </span>
-          )}
-          {finalCompleted && (
-            <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200">
-              {resolvedCount} Resolved
-            </span>
-          )}
-          {finalCompleted && unresolvedCount > 0 && (
-            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-200">
-              {unresolvedCount} Unresolved
-            </span>
-          )}
-          {criticStep?.status === "running" && (
-            <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-0.5 text-[10px] font-bold text-cyan-200 animate-pulse">
-              Critiquing…
-            </span>
-          )}
+    <section className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-surface)] p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs uppercase text-[var(--cm-text-muted)]">Adversarial Review</p>
+          <h2 className={`mt-2 text-2xl font-semibold ${headerTone}`}>
+            Critic raised {totalChallengeCount} challenge{totalChallengeCount === 1 ? "" : "s"}
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--cm-text-muted)]">
+            {finalCompleted
+              ? `${resolvedCount} resolved by Final Agent, ${unresolvedCount} unresolved -> score adjusted -${scorePenalty}.`
+              : criticCompleted
+                ? "Final Agent is reconciling critic challenges before publishing the final score."
+                : "Critic Agent is still evaluating assumptions from Planner, Researcher, Risk Agent, and Architect."}
+          </p>
         </div>
-        <p className="mt-1 text-sm text-zinc-400">
-          Critic Agent challenges assumptions from Planner, Researcher, Risk, and
-          Architect agents
-        </p>
-        {finalCompleted && criticAdjustment && (
-          <div className="mt-3 rounded-2xl border border-amber-400/20 bg-amber-400/[0.04] p-3">
-            <p className="text-xs font-semibold text-amber-100">
-              Critic raised {totalChallengeCount} challenge{totalChallengeCount !== 1 ? "s" : ""}.{" "}
-              {resolvedCount} resolved by Final Agent, {unresolvedCount} unresolved -&gt; score adjusted -{scorePenalty}.
-            </p>
-            <p className="mt-1 font-mono text-[10px] text-amber-200/70">
-              {criticAdjustment.math}
-            </p>
-          </div>
-        )}
+        <div className="grid grid-cols-3 gap-2 sm:min-w-[360px]">
+          <Metric label="resolved" value={resolvedCount} tone="accent" />
+          <Metric label="unresolved" value={unresolvedCount} tone={unresolvedCount > 0 ? "critical" : "neutral"} />
+          <Metric label="penalty" value={`-${scorePenalty}`} tone={scorePenalty > 0 ? "warning" : "neutral"} />
+        </div>
       </div>
 
-      {/* Battle Arena — Two-column layout */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* LEFT — Agent Claims */}
-        <div>
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-[10px] font-bold text-zinc-400">
-              4
-            </span>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-              Agent Claims
-            </h3>
-          </div>
-          <div className="space-y-3">
-            {CHALLENGED_AGENTS.map((agent) => {
-              const step = stepMap.get(agent.name);
-              const claim =
-                step?.status === "completed"
-                  ? extractClaim(step.output ?? "")
-                  : step?.status === "running"
-                  ? "Generating analysis…"
-                  : "Waiting for analysis…";
+      <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-4">
+          <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-[var(--cm-text-primary)]">Critic challenges</h3>
+              {criticStep?.status === "running" ? (
+                <span className="rounded-md border border-[var(--cm-accent)]/30 bg-[var(--cm-accent)]/10 px-2 py-1 text-[11px] font-semibold text-teal-200">
+                  running
+                </span>
+              ) : null}
+            </div>
 
-              const isInactive =
-                step?.status === "pending" || step?.status === "failed";
-
-              if (isInactive) {
-                return (
-                  <PlaceholderCard
-                    key={agent.name}
-                    label={agent.label}
-                    icon={agent.icon}
-                  />
-                );
-              }
-
-              return (
-                <ClaimCard
-                  key={agent.name}
-                  icon={agent.icon}
-                  label={agent.label}
-                  claim={claim}
-                  accentBorder={agent.accentBorder}
-                  accentText={agent.accentText}
-                  accentBg={agent.accentBg}
-                />
-              );
-            })}
-          </div>
-        </div>
-
-        {/* RIGHT — Critic Challenges */}
-        <div>
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-red-400/30 bg-red-400/10 text-[10px] font-bold text-red-300">
-              🔎
-            </span>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-red-400">
-              Critic Challenges
-            </h3>
-          </div>
-          <div className="space-y-3">
-            {CHALLENGED_AGENTS.map((agent) => {
-              if (!criticCompleted) {
-                return (
-                  <PlaceholderCard
-                    key={agent.name}
-                    label={`vs ${agent.label}`}
-                    icon="🔎"
-                  />
-                );
-              }
-
-              const challenge = challenges.get(agent.name);
-              if (!challenge) {
-                return (
-                  <div
-                    key={agent.name}
-                    className="rounded-2xl border border-white/5 bg-black/20 p-4"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-base leading-none">🔎</span>
-                      <span className="text-xs font-bold text-zinc-500">
-                        No challenge raised
+            {challengeRows.length > 0 ? (
+              <div className="space-y-3">
+                {challengeRows.map((challenge) => (
+                  <article key={challenge.id} className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-background)] p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <SeverityBadge severity={challenge.severity} />
+                      <StatusBadge status={challenge.status} />
+                      <span className="rounded-md border border-[var(--cm-border)] bg-white/[0.03] px-2 py-1 font-mono text-[11px] text-[var(--cm-text-muted)]">
+                        vs {challenge.agentLabel}
                       </span>
                     </div>
-                    <p className="text-[10px] text-zinc-600">
-                      Critic found no issues with {agent.label}&apos;s output.
+                    <p className="mt-3 text-sm font-semibold leading-6 text-[var(--cm-text-primary)]">
+                      {challenge.summary}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-[var(--cm-text-muted)]">
+                      {challenge.explanation}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-background)] p-4 text-sm text-[var(--cm-text-muted)]">
+                {criticCompleted ? "Critic found no material challenges." : "Waiting for critic output."}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4">
+            <h3 className="mb-4 text-sm font-semibold text-[var(--cm-text-primary)]">Agent claims</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              {CHALLENGED_AGENTS.map((agent) => {
+                const step = stepMap.get(agent.name);
+                const inactive = !step || step.status === "pending";
+
+                return (
+                  <div key={agent.name} className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-background)] p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--cm-border)] font-mono text-xs text-[var(--cm-text-muted)]">
+                        {agent.token}
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--cm-text-primary)]">{agent.label}</p>
+                        <p className="text-[11px] text-[var(--cm-text-muted)]">{step?.status ?? "pending"}</p>
+                      </div>
+                    </div>
+                    <p className={`mt-3 text-xs leading-5 ${inactive ? "text-zinc-600" : "text-zinc-300"}`}>
+                      {extractClaim(step?.output)}
                     </p>
                   </div>
                 );
-              }
-
-              return (
-                <ChallengeCard
-                  key={agent.name}
-                  agentLabel={agent.label}
-                  challenge={challenge}
-                />
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Battle connector — visual arrow from challenges to resolution */}
-      {criticCompleted && (
-        <div className="my-4 flex items-center justify-center gap-3">
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-red-400/20 to-red-400/40" />
-          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              className="text-red-400/50"
-            >
-              <path
-                d="M8 2v9m0 0l-3.5-3.5M8 11l3.5-3.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Reconciled by Final Agent
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              className="text-emerald-400/50"
-            >
-              <path
-                d="M8 14V5m0 0l3.5 3.5M8 5L4.5 8.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-          <div className="h-px flex-1 bg-gradient-to-l from-transparent via-emerald-400/20 to-emerald-400/40" />
-        </div>
-      )}
-
-      {/* Reconciliation Row */}
-      <div>
-        <div className="mb-3 flex items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-emerald-400/30 bg-emerald-400/10 text-[10px] font-bold text-emerald-300">
-            ⚖️
-          </span>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-            Final Agent Reconciliation
-          </h3>
-        </div>
-
-        {finalCompleted ? (
-          <>
-            {/* Per-agent resolution cards */}
-            <div className="space-y-3">
-              {CHALLENGED_AGENTS.map((agent) => {
-                const perAgentResolution = extractPerAgentResolution(
-                  finalStep?.output,
-                  agent.name
-                );
-
-                // Show resolution for each challenged agent
-                const challengeExists = challenges.has(agent.name);
-
-                if (!challengeExists && !perAgentResolution) {
-                  return (
-                    <div
-                      key={agent.name}
-                      className="flex items-center gap-3 rounded-2xl border border-white/5 bg-black/20 p-4"
-                    >
-                      <span className="text-base leading-none">{agent.icon}</span>
-                      <span className="text-xs text-zinc-600">
-                        {agent.label} — no challenges to resolve
-                      </span>
-                    </div>
-                  );
-                }
-
-                // Build resolution text: per-agent extraction > general summary > fallback
-                let resolutionText: string;
-                if (perAgentResolution && perAgentResolution.length > 10) {
-                  resolutionText = perAgentResolution;
-                } else if (challengeExists) {
-                  // Fallback: use the general final resolution as context
-                  resolutionText = `Challenge addressed in final synthesis. ${finalResolution.slice(0, 160)}`;
-                } else {
-                  resolutionText = "Incorporated into final synthesis";
-                }
-
-                return (
-                  <ResolutionRow
-                    key={agent.name}
-                    agentLabel={agent.label}
-                    agentIcon={agent.icon}
-                    resolution={resolutionText}
-                    accentBorder={agent.accentBorder}
-                  />
-                );
               })}
             </div>
+          </div>
+        </div>
 
-            {/* Final recommendation banner */}
-            {report && (
-              <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-base leading-none">⚖️</span>
-                  <span className="text-sm font-bold text-cyan-200">
-                    Final Recommendation
-                  </span>
-                  <span
-                    className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                      report.recommendation === "GO"
-                        ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-                        : report.recommendation === "NO_GO"
-                        ? "border-red-400/30 bg-red-400/10 text-red-200"
-                        : "border-amber-400/30 bg-amber-400/10 text-amber-200"
-                    }`}
-                  >
-                    {report.recommendation.replace("_", " ")}
-                  </span>
-                  <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-0.5 text-[10px] font-bold text-cyan-200">
-                    {report.score}/100
-                  </span>
-                </div>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  {report.summary}
-                </p>
+        <div className="space-y-4">
+          <ScoreMath report={report} challengeRows={challengeRows} />
+
+          <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4">
+            <h3 className="text-sm font-semibold text-[var(--cm-text-primary)]">Final Agent reconciliation</h3>
+            {finalCompleted ? (
+              <div className="mt-4 space-y-3">
+                {(challengeRows.length > 0 ? challengeRows : CHALLENGED_AGENTS.map((agent, index) => ({
+                  id: `${agent.name}-${index}`,
+                  agentName: agent.name,
+                  agentLabel: agent.label,
+                  severity: "low" as ChallengeSeverity,
+                  summary: "No critic challenge for this agent.",
+                  explanation: "",
+                  status: "resolved" as ChallengeStatus,
+                }))).map((challenge) => (
+                  <div key={challenge.id} className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-background)] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold text-zinc-300">{challenge.agentLabel}</p>
+                      <StatusBadge status={challenge.status} />
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-[var(--cm-text-muted)]">
+                      {extractPerAgentResolution(finalStep?.output, challenge.agentName)}
+                    </p>
+                  </div>
+                ))}
               </div>
+            ) : (
+              <p className="mt-3 text-sm leading-6 text-[var(--cm-text-muted)]">
+                Reconciliation will appear once the Final Agent completes synthesis.
+              </p>
             )}
-          </>
-        ) : criticCompleted ? (
-          <div className="rounded-2xl border border-white/5 bg-black/20 p-4 text-center">
-            <div className="flex items-center justify-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-cyan-400" />
-              </span>
-              <span className="text-xs text-cyan-300 font-semibold">
-                Final Agent synthesizing reconciliation…
-              </span>
-            </div>
           </div>
-        ) : (
-          <div className="rounded-2xl border border-white/5 bg-black/20 p-4 text-center">
-            <p className="text-xs text-zinc-600 italic">
-              Reconciliation will appear after the Critic and Final Agent complete.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Legend */}
-      <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-white/5 bg-black/20 px-4 py-3">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-          Legend
-        </span>
-        <div className="flex items-center gap-1.5">
-          <span className="rounded-full border border-red-400/30 bg-red-400/10 px-1.5 py-0.5 text-[8px] font-bold text-red-200">
-            CHALLENGED
-          </span>
-          <span className="text-xs text-zinc-400">Critic identified weakness</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-1.5 py-0.5 text-[8px] font-bold text-emerald-200">
-            RESOLVED
-          </span>
-          <span className="text-xs text-zinc-400">Final Agent reconciliation</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-1 w-4 rounded-full bg-gradient-to-r from-red-400/40 to-emerald-400/40" />
-          <span className="text-xs text-zinc-400">Challenge → Resolution</span>
         </div>
       </div>
     </section>

@@ -1,0 +1,5 @@
+import { createClawMindMcpRoute } from "@/lib/mcp-route";
+
+const handler = createClawMindMcpRoute("");
+
+export { handler as GET, handler as POST, handler as DELETE };
