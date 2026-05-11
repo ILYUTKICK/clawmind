@@ -24,6 +24,10 @@ type VerifyResponse = {
     recommendation: string;
     timestamp: number;
     timestampReadable: string;
+    taskHash?: string;
+    signature?: string;
+    signatureVerified?: boolean;
+    registryMode?: string;
   };
   contract?: {
     address: string | null;
@@ -37,6 +41,7 @@ type VerifyResponse = {
     validRecommendation: boolean;
     hasStorageUri: boolean;
     hasSubmitter: boolean;
+    operatorSignatureVerified?: boolean;
   };
   timestamp?: string;
 };
@@ -400,6 +405,22 @@ export function IntegrityPanel({ reportHash, onChainReceipt }: IntegrityPanelPro
                   {shortenHash(verifyData.onChain.submitter, 10)}
                 </span>
               </div>
+              {verifyData.onChain.registryMode && (
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500">Registry mode</span>
+                  <span className={verifyData.onChain.registryMode === "SIGNED_OPERATOR" ? "text-emerald-300" : "text-yellow-300"}>
+                    {verifyData.onChain.registryMode}
+                  </span>
+                </div>
+              )}
+              {verifyData.onChain.signatureVerified !== undefined && (
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500">Operator signature</span>
+                  <span className={verifyData.onChain.signatureVerified ? "text-emerald-300" : "text-yellow-300"}>
+                    {verifyData.onChain.signatureVerified ? "Verified" : "Legacy"}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-zinc-500">Score</span>
                 <span className="text-zinc-300">{verifyData.onChain.score}/100</span>

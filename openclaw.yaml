@@ -234,9 +234,10 @@ zero_g_integration:
     network: mainnet
     chain_id: 16661
     contract: AnalysisRegistry.sol
-    contract_address: "0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2"
-    explorer: https://chainscan.0g.ai/address/0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2
-    description: Each completed analysis is anchored on-chain with root hash, score, recommendation, and storage URI.
+    contract_address: "0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1"
+    explorer: https://chainscan.0g.ai/address/0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1
+    description: Each completed analysis is anchored on-chain with root hash, score, recommendation, storage URI, and an EIP-712 signature from an authorized ClawMind operator.
+    authentication: EIP712_OPERATOR_SIGNATURE
   judge_mode:
     url: /judge
     api: /api/judge

@@ -96,6 +96,11 @@ export type OnChainReceipt = {
   contractAddress: string;
   explorerTxUrl: string;
   provider: "0G_CHAIN" | "NOT_CONFIGURED";
+  taskHash?: string;
+  signature?: string;
+  signedBy?: string;
+  signatureVerified?: boolean;
+  registryMode?: "SIGNED_OPERATOR" | "LEGACY_UNAUTHENTICATED";
 };
 
 export type AnalysisResult = {

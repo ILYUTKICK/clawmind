@@ -202,6 +202,7 @@ export async function runAnalysis(
   console.log(`[Orchestrator]   Storage enabled: ${process.env.ZERO_G_STORAGE_ENABLED ?? "not set"}`);
 
   const onChainResult = await recordAnalysisOnChain({
+    task,
     rootHash: receipt.reportHash,
     storageUri: receipt.storageUri ?? "",
     score: finalResult.report.score,
@@ -237,8 +238,16 @@ export async function runAnalysis(
     memoryWriterLines.push(
       `On-chain analysis ID: ${onChainReceipt.analysisId}.`,
       `On-chain tx: ${onChainReceipt.explorerTxUrl || onChainReceipt.txHash}.`,
-      `Contract: ${onChainReceipt.contractAddress}.`
+      `Contract: ${onChainReceipt.contractAddress}.`,
+      `Registry mode: ${onChainReceipt.registryMode ?? "UNKNOWN"}.`
     );
+
+    if (onChainReceipt.signatureVerified && onChainReceipt.signedBy) {
+      memoryWriterLines.push(
+        `Signed by authorized operator: ${onChainReceipt.signedBy}.`,
+        `Task hash: ${onChainReceipt.taskHash}.`
+      );
+    }
   }
 
   memoryWriterLines.push(

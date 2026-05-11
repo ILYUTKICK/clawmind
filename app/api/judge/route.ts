@@ -70,6 +70,10 @@ type JudgeLatestOnChainAnalysis = {
   timestamp: number;
   submitter: string;
   explorerTxUrl: string;
+  taskHash?: string;
+  signature?: string;
+  signatureVerified?: boolean;
+  registryMode?: "SIGNED_OPERATOR" | "LEGACY_UNAUTHENTICATED";
 };
 
 type JudgeRecentAnalysis = {
@@ -340,6 +344,10 @@ export async function GET(): Promise<NextResponse> {
           timestamp: analysisFromChain.timestamp,
           submitter: analysisFromChain.submitter,
           explorerTxUrl: contractExplorerUrl ?? "",
+          taskHash: analysisFromChain.taskHash,
+          signature: analysisFromChain.signature,
+          signatureVerified: analysisFromChain.signatureVerified,
+          registryMode: analysisFromChain.registryMode,
         };
       }
     }

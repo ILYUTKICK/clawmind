@@ -10,7 +10,7 @@ ClawMind runs multi-agent Web3 due diligence and anchors the final report on 0G 
 | Judge mode | https://clawmind-puce.vercel.app/judge |
 | Judge API | https://clawmind-puce.vercel.app/api/judge |
 | OpenClaw manifest | https://clawmind-puce.vercel.app/api/openclaw/manifest?format=json |
-| 0G contract | https://chainscan.0g.ai/address/0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2 |
+| 0G contract | https://chainscan.0g.ai/address/0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1 |
 
 ## Problem
 
@@ -54,7 +54,7 @@ The UI shows how many challenges were raised, how many were resolved, and how th
 | 0G Compute | Routes agent inference through 0G Router using `deepseek/deepseek-chat-v3-0324`. | Judge API: `compute.active` |
 | 0G Storage - reports | Stores final report JSON and returns a root hash plus `0g://` URI. | In-app decision receipt |
 | 0G Storage - memory | Stores the persistent memory index used by future runs. | Memory index receipt |
-| 0G Chain | Records report hash, score, recommendation, and storage URI in `AnalysisRegistry.sol`. | Contract `0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2` |
+| 0G Chain | Records report hash, score, recommendation, storage URI, and the EIP-712 operator signature in `AnalysisRegistry.sol`. | Contract `0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1` |
 | OpenClaw manifest | Describes the 8-step agent pipeline, artifacts, and security policies. | `/api/openclaw/manifest?format=json` |
 
 ## Verification Checklist
@@ -67,6 +67,7 @@ The UI shows how many challenges were raised, how many were resolved, and how th
 | Semantic memory is active | Open `/api/judge` and check `memory.semanticRetrievalActive: true`. |
 | Reports are persisted | Run an analysis and check the decision receipt for `provider: "0G_STORAGE"` and a `0g://` URI. |
 | On-chain anchoring works | Run an analysis and open the transaction from the on-chain receipt. |
+| Submitter is authenticated | In the on-chain receipt or Judge Mode, check for `SIGNED_OPERATOR` and a verified operator signature. |
 | Integrity is checkable | Compare the report hash in the UI with the hash stored on 0G Chain. |
 | Critic affects the result | Run a high-risk custody task and inspect the Adversarial Panel plus final score adjustment. |
 
@@ -91,7 +92,7 @@ ClawMind reviews Web3 projects; it does not execute transactions, manage user fu
 - ClawMind is a due-diligence aid, not a formal audit or exploit detector.
 - Public task text is weaker than source code, docs, tests, and deployment config.
 - On-chain integrity proves the report hash was recorded; it does not prove the report is correct.
-- Current contract integrity does not yet require an EIP-712 operator signature.
+- Production must point `ZERO_G_ANALYSIS_REGISTRY_ADDRESS` at the signed registry before claiming operator-authenticated writes.
 
 ## Setup
 
@@ -112,8 +113,18 @@ ZERO_G_COMPUTE_API_KEY=your_0g_mainnet_router_api_key
 ZERO_G_COMPUTE_MODEL=deepseek/deepseek-chat-v3-0324
 ZERO_G_STORAGE_ENABLED=true
 ZERO_G_STORAGE_PRIVATE_KEY=your_mainnet_wallet_private_key
-ZERO_G_ANALYSIS_REGISTRY_ADDRESS=0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2
+ZERO_G_ANALYSIS_REGISTRY_ADDRESS=0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1
+ZERO_G_ALLOW_LEGACY_REGISTRY_WRITES=false
 ```
+
+Deploy the signed registry after installing Foundry:
+
+```bash
+git submodule update --init --recursive
+node scripts/deploy-registry.mjs
+```
+
+The deployed address should replace `ZERO_G_ANALYSIS_REGISTRY_ADDRESS`. The deployer wallet is authorized as the first EIP-712 operator.
 
 ## API
 

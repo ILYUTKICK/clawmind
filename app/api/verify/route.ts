@@ -56,6 +56,10 @@ export async function GET() {
         recommendation: latest.recommendation,
         timestamp: latest.timestamp,
         timestampReadable: new Date(latest.timestamp * 1000).toISOString(),
+        taskHash: latest.taskHash,
+        signature: latest.signature,
+        signatureVerified: latest.signatureVerified,
+        registryMode: latest.registryMode,
       },
       contract: {
         address: contractAddress,
@@ -74,6 +78,10 @@ export async function GET() {
         ),
         hasStorageUri: latest.storageUri.length > 0,
         hasSubmitter: latest.submitter.startsWith("0x"),
+        operatorSignatureVerified:
+          latest.registryMode === "SIGNED_OPERATOR"
+            ? latest.signatureVerified === true
+            : false,
       },
       timestamp: new Date().toISOString(),
     });

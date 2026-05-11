@@ -52,6 +52,10 @@ type JudgeLatestOnChainAnalysis = {
   timestamp: number;
   submitter: string;
   explorerTxUrl: string;
+  taskHash?: string;
+  signature?: string;
+  signatureVerified?: boolean;
+  registryMode?: "SIGNED_OPERATOR" | "LEGACY_UNAUTHENTICATED";
 };
 
 type JudgeRecentAnalysis = {
@@ -565,6 +569,21 @@ export default function JudgePage() {
                   )}
                 </div>
               )}
+              {data.latestOnChainAnalysis?.registryMode && (
+                <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-xs text-zinc-500">Submitter auth</p>
+                  <p className={data.latestOnChainAnalysis.registryMode === "SIGNED_OPERATOR" ? "mt-1 text-xs font-semibold text-emerald-300" : "mt-1 text-xs font-semibold text-yellow-300"}>
+                    {data.latestOnChainAnalysis.registryMode === "SIGNED_OPERATOR"
+                      ? `Signed by ${shortenHash(data.latestOnChainAnalysis.submitter, 8)} - verified by contract`
+                      : "Legacy unauthenticated registry"}
+                  </p>
+                  {data.latestOnChainAnalysis.taskHash && (
+                    <p className="mt-1 font-mono text-[11px] text-zinc-500 break-all">
+                      taskHash {shortenHash(data.latestOnChainAnalysis.taskHash, 10)}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* OpenClaw */}
@@ -602,7 +621,7 @@ export default function JudgePage() {
               {
                 req: "0G Compute for inference",
                 met: ig.compute.status === "active",
-                detail: "All 7 specialized agents use 0G Compute-compatible inference endpoint.",
+                detail: "All 8 pipeline steps use 0G Compute-compatible inference where model inference is required.",
               },
               {
                 req: "0G Storage for state persistence",
@@ -622,12 +641,19 @@ export default function JudgePage() {
               {
                 req: "On-chain anchoring (0G Chain)",
                 met: ig.onChain.configured,
-                detail: "AnalysisRegistry.sol registers each analysis on-chain with root hash, score, and recommendation.",
+                detail: "AnalysisRegistry.sol registers each analysis on-chain with root hash, score, recommendation, storage URI, and operator auth proof.",
+              },
+              {
+                req: "EIP-712 operator authentication",
+                met: data.latestOnChainAnalysis?.registryMode === "SIGNED_OPERATOR" && data.latestOnChainAnalysis.signatureVerified === true,
+                detail: data.latestOnChainAnalysis?.registryMode === "SIGNED_OPERATOR"
+                  ? `Latest analysis signed by authorized operator ${shortenHash(data.latestOnChainAnalysis.submitter, 8)}.`
+                  : "Deploy the signed AnalysisRegistry to enforce authorized operator signatures.",
               },
               {
                 req: "Multi-agent reasoning pipeline",
                 met: true,
-                detail: "8-step pipeline: Memory → Planner → Researcher → Risk → Architect → Critic → Final → Memory Writer.",
+                detail: "8-step pipeline: Memory -> Planner -> Researcher -> Risk -> Architect -> Critic -> Final -> Memory Writer.",
               },
             ].map((item) => (
               <div

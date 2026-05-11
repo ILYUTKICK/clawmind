@@ -309,13 +309,7 @@ export default function HomePage() {
                 storageUri: analysis.receipt.storageUri,
                 provider: analysis.receipt.provider,
               } : undefined}
-              onChainReceipt={analysis?.onChainReceipt ? {
-                txHash: analysis.onChainReceipt.txHash,
-                analysisId: analysis.onChainReceipt.analysisId,
-                contractAddress: analysis.onChainReceipt.contractAddress,
-                explorerTxUrl: analysis.onChainReceipt.explorerTxUrl,
-                provider: analysis.onChainReceipt.provider,
-              } : undefined}
+              onChainReceipt={analysis?.onChainReceipt}
             />
             {analysis ? (
               <>

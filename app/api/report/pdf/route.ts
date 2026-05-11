@@ -26,6 +26,11 @@ export async function POST(request: NextRequest) {
         contractAddress?: string;
         explorerTxUrl?: string;
         provider?: string;
+        taskHash?: string;
+        signature?: string;
+        signedBy?: string;
+        signatureVerified?: boolean;
+        registryMode?: string;
       };
     };
 
@@ -171,6 +176,12 @@ export async function POST(request: NextRequest) {
         if (onChainReceipt.contractAddress) doc.text(`  Contract: ${onChainReceipt.contractAddress}`);
         if (onChainReceipt.explorerTxUrl) doc.text(`  Explorer: ${onChainReceipt.explorerTxUrl}`);
         if (onChainReceipt.provider) doc.text(`  Provider: ${onChainReceipt.provider}`);
+        if (onChainReceipt.registryMode) doc.text(`  Registry Mode: ${onChainReceipt.registryMode}`);
+        if (onChainReceipt.signedBy) doc.text(`  Signed By: ${onChainReceipt.signedBy}`);
+        if (onChainReceipt.taskHash) doc.text(`  Task Hash: ${onChainReceipt.taskHash}`);
+        if (onChainReceipt.signatureVerified !== undefined) {
+          doc.text(`  Signature Verified: ${onChainReceipt.signatureVerified ? "yes" : "no"}`);
+        }
         doc.moveDown(0.4);
       }
     }

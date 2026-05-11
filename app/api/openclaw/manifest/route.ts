@@ -110,6 +110,17 @@ export async function GET(request: Request): Promise<NextResponse> {
           contractAddress,
           explorerUrl: contractAddress ? getExplorerAddressUrl(contractAddress) : null,
           latestAnalysis: latestOnChain,
+          operatorAuthentication:
+            latestOnChain?.registryMode === "SIGNED_OPERATOR"
+              ? {
+                  mode: "EIP712_OPERATOR_SIGNATURE",
+                  signatureVerified: latestOnChain.signatureVerified === true,
+                  signedBy: latestOnChain.submitter,
+                }
+              : {
+                  mode: "LEGACY_OR_NOT_DEPLOYED",
+                  signatureVerified: false,
+                },
         },
         semanticMemory: {
           embeddingModel: "all-MiniLM-L6-v2",

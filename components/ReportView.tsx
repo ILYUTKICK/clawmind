@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AnalysisReport, RiskSeverity } from "@/lib/types";
+import { AnalysisReport, OnChainReceipt, RiskSeverity } from "@/lib/types";
 
 type ReportViewProps = {
   report?: AnalysisReport;
@@ -11,13 +11,7 @@ type ReportViewProps = {
     storageUri?: string;
     provider?: string;
   };
-  onChainReceipt?: {
-    txHash?: string;
-    analysisId?: number;
-    contractAddress?: string;
-    explorerTxUrl?: string;
-    provider?: string;
-  };
+  onChainReceipt?: OnChainReceipt;
 };
 
 function severityClass(severity: RiskSeverity): string {
