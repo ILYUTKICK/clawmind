@@ -79,7 +79,7 @@ Use these to check that scoring is not collapsing to one value:
 |---|---|
 | `Review a read-only Web3 analytics dashboard for Uniswap pools. It uses public indexed data only, has no wallet connection, no transaction signing, no custody, no admin keys, and no ability to move funds.` | `GO`, score around 75-90 |
 | `Self-custodial agent that auto-trades user funds with no withdrawal guards and a private key in an env var.` | `NO_GO`, score around 10-25 |
-| `New AMM with novel TWAP oracle, audited by 1 firm, $5M TVL, anonymous team.` | `INVESTIGATE_MORE`, score around 40-60 |
+| `New AMM with novel TWAP oracle, audited by 1 firm, $5M TVL, anonymous team.` | `INVESTIGATE_MORE`, score around 35-60 |
 | `asdf qwerty` | Refusal or very low score |
 | `Upgradeable cross-chain bridge with admin key rotation, delayed oracle fallback, and $20M planned TVL.` | Edge case requiring investigation |
 
@@ -92,7 +92,7 @@ ClawMind reviews Web3 projects; it does not execute transactions, manage user fu
 - ClawMind is a due-diligence aid, not a formal audit or exploit detector.
 - Public task text is weaker than source code, docs, tests, and deployment config.
 - On-chain integrity proves the report hash was recorded; it does not prove the report is correct.
-- Production must point `ZERO_G_ANALYSIS_REGISTRY_ADDRESS` at the signed registry before claiming operator-authenticated writes.
+- If the registry address changes, production must keep `ZERO_G_ANALYSIS_REGISTRY_ADDRESS` pointed at a signed registry before claiming operator-authenticated writes.
 
 ## Setup
 
