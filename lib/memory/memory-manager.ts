@@ -102,7 +102,13 @@ export async function getRelevantMemories(task: string): Promise<MemoryRecord[]>
         const sortedMemories = scoredMemories.sort((a, b) => b.score - a.score);
         const minSimilarity = taskEmbedResult.provider === "HASHED_FALLBACK" ? 0.12 : 0.3;
         const topMemories = sortedMemories
-          .filter((item) => item.score > minSimilarity)
+          .filter((item) => {
+            if (item.score <= minSimilarity) {
+              return false;
+            }
+
+            return taskEmbedResult.provider !== "HASHED_FALLBACK" || keywordScore(task, item.memory) >= 2;
+          })
           .slice(0, 3)
           .map((item) => item.memory);
 
