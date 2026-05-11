@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import {
   getLatestAnalysisFromChain,
+  getRegistryAuthStatus,
   ANALYSIS_REGISTRY_ABI,
 } from "@/lib/contracts/analysis-registry";
 import { getInfrastructureStatus } from "@/lib/infrastructure-status";
@@ -45,6 +46,13 @@ type JudgeOnChainInfo = {
   contractAddress: string | null;
   explorerUrl: string | null;
   latestAnalysis: Record<string, unknown> | null;
+  operatorAuthentication: {
+    mode: string;
+    contractSupportsOperatorAuth: boolean;
+    operatorAddress: string | null;
+    operatorAuthorized: boolean | null;
+    signatureVerified: boolean;
+  };
 };
 
 type JudgeOpenClawInfo = {
@@ -316,6 +324,7 @@ export async function GET(): Promise<NextResponse> {
     // --- On-chain integration evidence ---
     let latestOnChainAnalysis: JudgeLatestOnChainAnalysis | null = null;
     let latestAnalysisRaw: Record<string, unknown> | null = null;
+    const registryAuthStatus = await getRegistryAuthStatus();
 
     if (infra.onChain.contractAddress && infra.onChain.contractAddress.startsWith("0x")) {
       const analysisFromChain = await getLatestAnalysisFromChain();
@@ -357,6 +366,19 @@ export async function GET(): Promise<NextResponse> {
       contractAddress: infra.onChain.contractAddress,
       explorerUrl: infra.onChain.explorerUrl,
       latestAnalysis: latestAnalysisRaw,
+      operatorAuthentication: {
+        mode:
+          latestOnChainAnalysis?.registryMode === "SIGNED_OPERATOR"
+            ? "EIP712_OPERATOR_SIGNATURE"
+            : registryAuthStatus.mode,
+        contractSupportsOperatorAuth: registryAuthStatus.contractSupportsOperatorAuth,
+        operatorAddress: registryAuthStatus.operatorAddress,
+        operatorAuthorized: registryAuthStatus.operatorAuthorized,
+        signatureVerified:
+          latestOnChainAnalysis?.registryMode === "SIGNED_OPERATOR"
+            ? latestOnChainAnalysis.signatureVerified === true
+            : registryAuthStatus.mode === "SIGNED_OPERATOR_READY",
+      },
     };
 
     // --- OpenClaw evidence ---

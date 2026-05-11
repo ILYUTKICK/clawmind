@@ -80,6 +80,65 @@ export function isRegistryConfigured(): boolean {
   return getRegistryConfig().isConfigured;
 }
 
+export type RegistryAuthStatus = {
+  contractSupportsOperatorAuth: boolean;
+  domainSeparator: string | null;
+  operatorAddress: string | null;
+  operatorAuthorized: boolean | null;
+  mode: "SIGNED_OPERATOR_READY" | "SIGNED_OPERATOR_NEEDS_AUTH" | "SIGNED_REGISTRY_NO_OPERATOR_KEY" | "LEGACY_OR_NOT_DEPLOYED";
+};
+
+export async function getRegistryAuthStatus(): Promise<RegistryAuthStatus> {
+  const config = getRegistryConfig();
+  const networkConfig = getNetworkConfig();
+
+  const fallback: RegistryAuthStatus = {
+    contractSupportsOperatorAuth: false,
+    domainSeparator: null,
+    operatorAddress: null,
+    operatorAuthorized: null,
+    mode: "LEGACY_OR_NOT_DEPLOYED",
+  };
+
+  if (!config.contractAddress || !config.contractAddress.startsWith("0x")) {
+    return fallback;
+  }
+
+  try {
+    const { ethers } = await import("ethers");
+    const provider = new ethers.JsonRpcProvider(networkConfig.evmRpc);
+    const contract = new ethers.Contract(
+      config.contractAddress,
+      ANALYSIS_REGISTRY_ABI,
+      provider
+    );
+    const domainSeparator = await contract.domainSeparator();
+
+    if (!config.privateKey || PLACEHOLDER_PRIVATE_KEYS.has(config.privateKey.trim())) {
+      return {
+        contractSupportsOperatorAuth: true,
+        domainSeparator,
+        operatorAddress: null,
+        operatorAuthorized: null,
+        mode: "SIGNED_REGISTRY_NO_OPERATOR_KEY",
+      };
+    }
+
+    const operatorAddress = new ethers.Wallet(config.privateKey).address;
+    const operatorAuthorized = Boolean(await contract.authorizedOperators(operatorAddress));
+
+    return {
+      contractSupportsOperatorAuth: true,
+      domainSeparator,
+      operatorAddress,
+      operatorAuthorized,
+      mode: operatorAuthorized ? "SIGNED_OPERATOR_READY" : "SIGNED_OPERATOR_NEEDS_AUTH",
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // recordAnalysisOnChain
 // ---------------------------------------------------------------------------

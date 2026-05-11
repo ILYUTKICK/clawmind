@@ -29,6 +29,13 @@ type JudgeOnChainInfo = {
   contractAddress: string | null;
   explorerUrl: string | null;
   latestAnalysis: Record<string, unknown> | null;
+  operatorAuthentication: {
+    mode: string;
+    contractSupportsOperatorAuth: boolean;
+    operatorAddress: string | null;
+    operatorAuthorized: boolean | null;
+    signatureVerified: boolean;
+  };
 };
 
 type JudgeOpenClawInfo = {
@@ -569,15 +576,15 @@ export default function JudgePage() {
                   )}
                 </div>
               )}
-              {data.latestOnChainAnalysis?.registryMode && (
+              {ig.onChain.operatorAuthentication.contractSupportsOperatorAuth && (
                 <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
                   <p className="text-xs text-zinc-500">Submitter auth</p>
-                  <p className={data.latestOnChainAnalysis.registryMode === "SIGNED_OPERATOR" ? "mt-1 text-xs font-semibold text-emerald-300" : "mt-1 text-xs font-semibold text-yellow-300"}>
-                    {data.latestOnChainAnalysis.registryMode === "SIGNED_OPERATOR"
-                      ? `Signed by ${shortenHash(data.latestOnChainAnalysis.submitter, 8)} - verified by contract`
-                      : "Legacy unauthenticated registry"}
+                  <p className={ig.onChain.operatorAuthentication.signatureVerified ? "mt-1 text-xs font-semibold text-emerald-300" : "mt-1 text-xs font-semibold text-yellow-300"}>
+                    {ig.onChain.operatorAuthentication.signatureVerified
+                      ? `Operator ${shortenHash(ig.onChain.operatorAuthentication.operatorAddress ?? data.latestOnChainAnalysis?.submitter ?? "", 8)} authorized`
+                      : ig.onChain.operatorAuthentication.mode}
                   </p>
-                  {data.latestOnChainAnalysis.taskHash && (
+                  {data.latestOnChainAnalysis?.taskHash && (
                     <p className="mt-1 font-mono text-[11px] text-zinc-500 break-all">
                       taskHash {shortenHash(data.latestOnChainAnalysis.taskHash, 10)}
                     </p>
@@ -645,10 +652,10 @@ export default function JudgePage() {
               },
               {
                 req: "EIP-712 operator authentication",
-                met: data.latestOnChainAnalysis?.registryMode === "SIGNED_OPERATOR" && data.latestOnChainAnalysis.signatureVerified === true,
-                detail: data.latestOnChainAnalysis?.registryMode === "SIGNED_OPERATOR"
-                  ? `Latest analysis signed by authorized operator ${shortenHash(data.latestOnChainAnalysis.submitter, 8)}.`
-                  : "Deploy the signed AnalysisRegistry to enforce authorized operator signatures.",
+                met: ig.onChain.operatorAuthentication.signatureVerified,
+                detail: ig.onChain.operatorAuthentication.signatureVerified
+                  ? `Signed registry ready; operator ${shortenHash(ig.onChain.operatorAuthentication.operatorAddress ?? data.latestOnChainAnalysis?.submitter ?? "", 8)} is authorized.`
+                  : "Deploy the signed AnalysisRegistry and authorize the production operator.",
               },
               {
                 req: "Multi-agent reasoning pipeline",

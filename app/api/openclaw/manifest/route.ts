@@ -2,7 +2,11 @@ import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { getNetworkConfig, getExplorerAddressUrl } from "@/lib/storage/zero-g-config";
-import { isRegistryConfigured, getLatestAnalysisFromChain } from "@/lib/contracts/analysis-registry";
+import {
+  getLatestAnalysisFromChain,
+  getRegistryAuthStatus,
+  isRegistryConfigured,
+} from "@/lib/contracts/analysis-registry";
 import { getComputeProviderLabel } from "@/lib/compute/compute-status";
 import { getStorageConfig } from "@/lib/storage/zero-g-config";
 import { loadAndValidateManifest } from "@/lib/openclaw/manifest-parser";
@@ -37,6 +41,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     const computeProvider = getComputeProviderLabel();
     const registryConfigured = isRegistryConfigured();
     const contractAddress = process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS ?? null;
+    const registryAuthStatus = await getRegistryAuthStatus();
 
     // Load parsed manifest
     const { config, validation } = await loadAndValidateManifest();
@@ -54,6 +59,9 @@ export async function GET(request: Request): Promise<NextResponse> {
             submitter: latest.submitter,
             timestamp: latest.timestamp,
             storageUri: latest.storageUri,
+            taskHash: latest.taskHash,
+            signatureVerified: latest.signatureVerified,
+            registryMode: latest.registryMode,
           };
         }
       } catch {
@@ -118,7 +126,11 @@ export async function GET(request: Request): Promise<NextResponse> {
                   signedBy: latestOnChain.submitter,
                 }
               : {
-                  mode: "LEGACY_OR_NOT_DEPLOYED",
+                  mode: registryAuthStatus.mode,
+                  contractSupportsOperatorAuth: registryAuthStatus.contractSupportsOperatorAuth,
+                  domainSeparator: registryAuthStatus.domainSeparator,
+                  operatorAddress: registryAuthStatus.operatorAddress,
+                  operatorAuthorized: registryAuthStatus.operatorAuthorized,
                   signatureVerified: false,
                 },
         },
