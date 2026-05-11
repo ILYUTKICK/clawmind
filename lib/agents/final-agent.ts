@@ -431,8 +431,28 @@ function recommendationFromScore(
   return "INVESTIGATE_MORE";
 }
 
-function clampScoreToProfile(score: number, profile: ScoreProfile): number {
-  return Math.max(profile.minScore, Math.min(profile.maxScore, score));
+function clampScoreToProfile(
+  score: number,
+  profile: ScoreProfile,
+  critic: ReturnType<typeof countCriticPenalty>,
+): number {
+  const cappedScore = Math.min(profile.maxScore, score);
+  const canUseProfileFloor =
+    critic.penalty === 0 || profile.kind === "garbage" || profile.kind === "high_risk_custody";
+
+  return canUseProfileFloor ? Math.max(profile.minScore, cappedScore) : Math.max(0, cappedScore);
+}
+
+function alignScoreWithRecommendation(score: number, recommendation: Recommendation): number {
+  if (recommendation === "NO_GO") {
+    return Math.min(score, 34);
+  }
+
+  if (recommendation === "GO") {
+    return Math.max(score, 70);
+  }
+
+  return Math.max(35, Math.min(69, score));
 }
 
 function evidenceConflictsWithCalibration(item: string): boolean {
@@ -585,17 +605,25 @@ function applyScoreCalibration(
   const critic = countCriticPenalty(input);
   const baseScore = profile.baseScore ?? modelScore;
   const calculatedScore = clampScore(baseScore - critic.penalty);
-  const finalScore = clampScoreToProfile(calculatedScore, profile);
+  const profileScore = clampScoreToProfile(calculatedScore, profile, critic);
   const recommendation = recommendationFromScore(
-    finalScore,
+    profileScore,
     profile,
     critic.unresolvedHigh,
     report.recommendation,
   );
-  const math =
-    calculatedScore === finalScore
-      ? `Base ${baseScore} - ${critic.penalty} critic penalty = ${finalScore}`
-      : `Base ${baseScore} - ${critic.penalty} critic penalty = ${calculatedScore}; calibrated to ${finalScore} for profile bounds`;
+  const finalScore = alignScoreWithRecommendation(profileScore, recommendation);
+  const mathParts = [`Base ${baseScore} - ${critic.penalty} critic penalty = ${calculatedScore}`];
+
+  if (profileScore !== calculatedScore) {
+    mathParts.push(`profile-bounded to ${profileScore}`);
+  }
+
+  if (finalScore !== profileScore) {
+    mathParts.push(`decision-aligned to ${finalScore} for ${recommendation}`);
+  }
+
+  const math = mathParts.join("; ");
   const alignedRisks = alignRisksWithDecision(profile, recommendation, report.risks);
   const sanitizedEvidence = sanitizeEvidenceForCalibration(report.evidence);
 
@@ -694,9 +722,9 @@ export async function runFinalAgent(input: FinalAgentInput): Promise<{
       "  Reasoning: Uncontrolled fund movement + key exposure = critical custody failure.",
       "",
       "Example B: Mature, well-audited protocol",
-      "  Summary: Uniswap V3 fork, no oracle dependency, audited 2x, $100M TVL, governance active.",
+      "  Summary: Uniswap V3 fork, no external oracle dependency, audited 2x, $100M TVL, immutable core contracts, no admin keys, non-custodial pools, timelocked governance for fee parameters only.",
       "  Expected: score 80-95, recommendation GO",
-      "  Reasoning: Proven architecture, audited, substantial TVL, decentralized governance.",
+      "  Reasoning: Proven architecture, audited, substantial TVL, and no direct custody/admin execution path.",
       "",
       "Example C: Novel mechanism, mixed signals",
       "  Summary: New AMM with unique TWAP oracle, 1 audit, $5M TVL, team anonymous.",
