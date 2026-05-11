@@ -91,7 +91,12 @@ export function createClawMindMcpRoute(basePath: string) {
         async ({ limit = 5 }) => toolResult(await getRecentAnalyses(limit)),
       );
     },
-    {},
+    {
+      serverInfo: {
+        name: "ClawMind MCP Server",
+        version: "0.1.0",
+      },
+    },
     {
       redisUrl: process.env.KV_REDIS_URL || process.env.REDIS_URL,
       basePath,
