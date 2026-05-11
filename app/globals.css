@@ -5,8 +5,11 @@
   /* ClawMind Day A design tokens */
   --cm-background: #0a0a0b;
   --cm-surface: #131316;
+  --cm-surface-elevated: #1a1a1f;
   --cm-border: #26262b;
+  --cm-border-emphasis: #3f3f46;
   --cm-text-primary: #fafafa;
+  --cm-text-secondary: #a1a1aa;
   --cm-text-muted: #8b8b94;
   --cm-accent: #14b8a6;
   --cm-warning: #f59e0b;
@@ -23,6 +26,8 @@
 html {
   min-height: 100%;
   background: var(--cm-background);
+  scroll-behavior: smooth;
+  scroll-padding-top: 72px;
 }
 
 body {
