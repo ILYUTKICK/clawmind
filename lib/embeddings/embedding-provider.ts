@@ -221,9 +221,8 @@ export function keywordScore(task: string, memory: MemoryRecord): number {
   )
     ? 3
     : 0;
-  const storageBoost = memory.storageUri?.startsWith("0g://") ? 1 : 0;
 
-  return matchCount + riskBoost + storageBoost;
+  return matchCount + riskBoost;
 }
 
 /**
