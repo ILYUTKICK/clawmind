@@ -143,7 +143,14 @@ function calculateFallbackScore(risks: RiskItem[]): number {
 }
 
 type ScoreProfile = {
-  kind: "garbage" | "high_risk_custody" | "mature_safe" | "ambiguous_novel" | "edge_case" | "default";
+  kind:
+    | "garbage"
+    | "high_risk_custody"
+    | "read_only_safe"
+    | "mature_safe"
+    | "ambiguous_novel"
+    | "edge_case"
+    | "default";
   label: string;
   baseScore?: number;
   minScore: number;
@@ -156,6 +163,32 @@ function normalizeForScoring(text: string): string {
 
 function hasAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((pattern) => pattern.test(text));
+}
+
+function isReadOnlySafeTaskText(text: string): boolean {
+  const readOnly = hasAny(text, [/\bread-only\b/, /\bread only\b/, /\bview-only\b/]);
+  const noExecution = hasAny(text, [
+    /\bno wallet connection\b/,
+    /\bno transaction signing\b/,
+    /\bno signing\b/,
+    /\bdoes not sign\b/,
+    /\bno custody\b/,
+    /\bnon-custodial\b/,
+    /\bno admin keys?\b/,
+    /\bno ability to move funds\b/,
+    /\bcannot move funds\b/,
+  ]);
+  const unsafeExecution = hasAny(text, [
+    /\bprivate key\b/,
+    /\benv var\b/,
+    /\bself-custodial\b/,
+    /\buser funds\b/,
+    /\bauto-?trad(?:e|es|ing)\b/,
+    /\bcan move funds\b/,
+    /\bability to move funds\b/,
+  ]);
+
+  return readOnly && noExecution && !unsafeExecution;
 }
 
 function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
@@ -211,6 +244,16 @@ function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
       baseScore: 52,
       minScore: 10,
       maxScore: 25,
+    };
+  }
+
+  if (isReadOnlySafeTaskText(taskText)) {
+    return {
+      kind: "read_only_safe",
+      label: "Read-only non-custodial analytics workflow",
+      baseScore: 88,
+      minScore: 75,
+      maxScore: 92,
     };
   }
 
@@ -387,12 +430,33 @@ function isCriticChallengeResolved(input: FinalAgentInput, challenge: CriticChal
 
 function countCriticPenalty(input: FinalAgentInput) {
   const challenges = input.critiqueOutput.challenges ?? [];
+  const isReadOnlySafeTask = isReadOnlySafeTaskText(normalizeForScoring(input.task));
   const unresolved = challenges.filter((challenge) => !isCriticChallengeResolved(input, challenge));
   const resolvedChallenges = challenges.length - unresolved.length;
+  const severityForScoring = (challenge: CriticChallenge): CriticChallenge["severity"] => {
+    if (!isReadOnlySafeTask || challenge.severity !== "high") {
+      return challenge.severity;
+    }
 
-  const unresolvedHigh = unresolved.filter((challenge) => challenge.severity === "high").length;
-  const unresolvedMedium = unresolved.filter((challenge) => challenge.severity === "medium").length;
-  const unresolvedLow = unresolved.filter((challenge) => challenge.severity === "low").length;
+    const challengeText = normalizeForScoring(`${challenge.challenge} ${challenge.explanation}`);
+    const directLossSignal = hasAny(challengeText, [
+      /\bprivate key\b/,
+      /\bcustody\b/,
+      /\bsigning\b/,
+      /\bmove funds\b/,
+      /\bdrain funds\b/,
+      /\bsteal funds\b/,
+      /\badmin keys?\b/,
+      /\bgovernance takeover\b/,
+    ]);
+
+    return directLossSignal ? "high" : "medium";
+  };
+
+  const unresolvedSeverities = unresolved.map(severityForScoring);
+  const unresolvedHigh = unresolvedSeverities.filter((severity) => severity === "high").length;
+  const unresolvedMedium = unresolvedSeverities.filter((severity) => severity === "medium").length;
+  const unresolvedLow = unresolvedSeverities.filter((severity) => severity === "low").length;
   const penalty = unresolvedHigh * 15 + unresolvedMedium * 7 + unresolvedLow * 3;
 
   return {
@@ -437,8 +501,13 @@ function clampScoreToProfile(
   critic: ReturnType<typeof countCriticPenalty>,
 ): number {
   const cappedScore = Math.min(profile.maxScore, score);
+  const canFloorSafeProfile =
+    (profile.kind === "mature_safe" || profile.kind === "read_only_safe") && critic.unresolvedHigh === 0;
   const canUseProfileFloor =
-    critic.penalty === 0 || profile.kind === "garbage" || profile.kind === "high_risk_custody";
+    critic.penalty === 0 ||
+    canFloorSafeProfile ||
+    profile.kind === "garbage" ||
+    profile.kind === "high_risk_custody";
 
   return canUseProfileFloor ? Math.max(profile.minScore, cappedScore) : Math.max(0, cappedScore);
 }

@@ -77,7 +77,7 @@ Use these to check that scoring is not collapsing to one value:
 
 | Task | Expected result |
 |---|---|
-| `Audit a Uniswap V3 fork with no external oracle dependency, audited twice, $100M TVL, immutable core contracts, no admin keys, non-custodial pools, timelocked governance for fee parameters only.` | `GO`, score around 75-90 |
+| `Review a read-only Web3 analytics dashboard for Uniswap pools. It uses public indexed data only, has no wallet connection, no transaction signing, no custody, no admin keys, and no ability to move funds.` | `GO`, score around 75-90 |
 | `Self-custodial agent that auto-trades user funds with no withdrawal guards and a private key in an env var.` | `NO_GO`, score around 10-25 |
 | `New AMM with novel TWAP oracle, audited by 1 firm, $5M TVL, anonymous team.` | `INVESTIGATE_MORE`, score around 40-60 |
 | `asdf qwerty` | Refusal or very low score |
