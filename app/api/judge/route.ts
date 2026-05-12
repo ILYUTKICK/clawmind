@@ -331,6 +331,16 @@ function computeScoreDistribution(
   );
 }
 
+function isSignedRegistryMetric(metric: AnalysisMetric): boolean {
+  return (
+    metric.signatureVerified === true &&
+    typeof metric.analysisId === "number" &&
+    metric.analysisId > 0 &&
+    typeof metric.rootHash === "string" &&
+    metric.rootHash.length > 0
+  );
+}
+
 // ---------------------------------------------------------------------------
 // GET handler
 // ---------------------------------------------------------------------------
@@ -481,10 +491,11 @@ export async function GET(): Promise<NextResponse> {
     const analysesPerHour = computeAnalysesPerHour(recentAnalyses);
     const scoreDistribution = computeScoreDistribution(recentAnalyses);
     const metricsSummary = await getAnalysisMetricsSummary();
+    const signedMetrics = metricsSummary.recent.filter(isSignedRegistryMetric);
     const mcpUsage: JudgeMcpUsageStats = {
-      trackedAnalyses: metricsSummary.trackedAnalyses,
-      mcpInitiatedAnalyses: metricsSummary.sources.mcp,
-      webInitiatedAnalyses: metricsSummary.sources.web,
+      trackedAnalyses: signedMetrics.length,
+      mcpInitiatedAnalyses: signedMetrics.filter((metric) => metric.source === "mcp").length,
+      webInitiatedAnalyses: signedMetrics.filter((metric) => metric.source === "web").length,
     };
 
     // --- Assemble final response ---
@@ -501,7 +512,7 @@ export async function GET(): Promise<NextResponse> {
       scoreDistribution,
       criticEffectiveness: metricsSummary.critic,
       mcpUsage,
-      analysisMetricsRecent: metricsSummary.recent.slice(0, 10),
+      analysisMetricsRecent: signedMetrics.slice(0, 10),
       memory,
       generatedAt: new Date().toISOString(),
     };

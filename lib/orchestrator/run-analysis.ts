@@ -212,19 +212,29 @@ export async function runAnalysis(
   console.log("[Orchestrator] Step 10: On-chain registration attempt...");
   console.log(`[Orchestrator]   Network: ${process.env.ZERO_G_NETWORK ?? "testnet (default)"}`);
   console.log(`[Orchestrator]   Contract: ${process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS ?? "NOT SET"}`);
-  console.log(`[Orchestrator]   Private key: ${process.env.ZERO_G_STORAGE_PRIVATE_KEY ? "SET (" + process.env.ZERO_G_STORAGE_PRIVATE_KEY.slice(0, 6) + "...)" : "NOT SET"}`);
+  console.log(`[Orchestrator]   Private key: ${process.env.ZERO_G_STORAGE_PRIVATE_KEY ? "SET" : "NOT SET"}`);
   console.log(`[Orchestrator]   Storage enabled: ${process.env.ZERO_G_STORAGE_ENABLED ?? "not set"}`);
 
-  const onChainResult = await recordAnalysisOnChain({
-    task,
-    rootHash: receipt.reportHash,
-    storageUri: receipt.storageUri ?? "",
-    score: finalResult.report.score,
-    recommendation: finalResult.report.recommendation,
-  });
+  const hasVerifiableReportStorage =
+    receipt.provider === "0G_STORAGE" && receipt.storageUri?.startsWith("0g://");
+
+  const onChainResult = hasVerifiableReportStorage
+    ? await recordAnalysisOnChain({
+        task,
+        rootHash: receipt.reportHash,
+        storageUri: receipt.storageUri ?? "",
+        score: finalResult.report.score,
+        recommendation: finalResult.report.recommendation,
+      })
+    : null;
 
   if (onChainResult) {
     console.log(`[Orchestrator]   ✓ On-chain tx SUCCESS: ${onChainResult.txHash} (block ${onChainResult.blockNumber})`);
+  } else if (!hasVerifiableReportStorage) {
+    console.warn(
+      `[Orchestrator]   ✗ On-chain registration SKIPPED — report storage provider is ${receipt.provider}, uri=${receipt.storageUri ?? "not available"}`
+    );
+    console.warn("[Orchestrator]   Only 0g:// report receipts are anchored on-chain.");
   } else {
     console.warn("[Orchestrator]   ✗ On-chain registration SKIPPED — check .env configuration");
     console.warn("[Orchestrator]   Required: ZERO_G_NETWORK=mainnet, ZERO_G_STORAGE_PRIVATE_KEY=<real key>, ZERO_G_ANALYSIS_REGISTRY_ADDRESS=<contract>");
@@ -262,6 +272,10 @@ export async function runAnalysis(
         `Task hash: ${onChainReceipt.taskHash}.`
       );
     }
+  } else if (!hasVerifiableReportStorage) {
+    memoryWriterLines.push(
+      "On-chain anchoring skipped because the report was not persisted to a verifiable 0g:// storage URI."
+    );
   }
 
   memoryWriterLines.push(

@@ -11,8 +11,30 @@ import { getComputeProviderLabel } from "@/lib/compute/compute-status";
 import { getStorageConfig } from "@/lib/storage/zero-g-config";
 import { loadAndValidateManifest } from "@/lib/openclaw/manifest-parser";
 import { isSemanticRetrievalActive } from "@/lib/embeddings/embedding-provider";
+import { getModelForAgent } from "@/lib/compute/model-router";
 
 export const dynamic = "force-dynamic";
+
+function getRuntimeModelForStep(stepId: string, declaredModel: string): string {
+  if (stepId === "memory_retrieval") {
+    return "all-MiniLM-L6-v2";
+  }
+
+  if (stepId === "memory_writer") {
+    return "all-MiniLM-L6-v2 + 0G Storage";
+  }
+
+  return getModelForAgent(stepId).model || declaredModel;
+}
+
+function getModelFamily(model: string): string {
+  if (model.includes("deepseek")) return "DeepSeek";
+  if (model.includes("qwen")) return "Qwen";
+  if (model.includes("GLM-5.1")) return "GLM-5.1";
+  if (model.includes("GLM-5")) return "GLM-5";
+  if (model.includes("MiniLM")) return "Local embeddings";
+  return "Local";
+}
 
 export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
@@ -69,6 +91,28 @@ export async function GET(request: Request): Promise<NextResponse> {
       }
     }
 
+    const runtimePipeline = config?.pipeline.map((step) => {
+      const runtimeModel = getRuntimeModelForStep(step.id, step.model);
+
+      return {
+        id: step.id,
+        label: step.label,
+        skill: step.skill,
+        model: runtimeModel,
+        declaredModel: step.model,
+        modelFamily: getModelFamily(runtimeModel),
+        temperature: step.temperature,
+        maxTokens: step.maxTokens,
+        dependsOn: step.dependsOn,
+        structuredOutput: step.structuredOutput,
+      };
+    }) ?? [];
+    const runtimeComputeModels = Array.from(new Set(
+      runtimePipeline
+        .filter((step) => step.id !== "memory_retrieval" && step.id !== "memory_writer")
+        .map((step) => step.model)
+    ));
+
     const jsonManifest = {
       name: config?.name ?? "clawmind",
       version: config?.version ?? "2.0.0",
@@ -81,21 +125,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         pipelineSteps: config?.pipeline.length ?? 0,
         modelStrategy: config?.strategy ?? "unknown",
       },
-      pipeline: config?.pipeline.map((step) => ({
-        id: step.id,
-        label: step.label,
-        skill: step.skill,
-        model: step.model,
-        modelFamily: step.model.includes("deepseek") ? "DeepSeek"
-          : step.model.includes("qwen") ? "Qwen"
-          : step.model.includes("GLM-5.1") ? "GLM-5.1"
-          : step.model.includes("GLM-5") ? "GLM-5"
-          : "Local",
-        temperature: step.temperature,
-        maxTokens: step.maxTokens,
-        dependsOn: step.dependsOn,
-        structuredOutput: step.structuredOutput,
-      })),
+      pipeline: runtimePipeline,
       liveEvidence: {
         network: {
           name: networkConfig.network,
@@ -105,9 +135,14 @@ export async function GET(request: Request): Promise<NextResponse> {
         compute: {
           provider: computeProvider,
           isConfigured: computeProvider === "0G_COMPUTE",
-          multiModelEnsemble: (config?.models.length ?? 0) > 1,
-          models: config?.models.map((m) => m.id) ?? [],
-          strategy: config?.strategy ?? "single_model",
+          multiModelEnsemble: runtimeComputeModels.length > 1,
+          models: runtimeComputeModels,
+          declaredModels: config?.models.map((m) => m.id) ?? [],
+          strategy:
+            runtimeComputeModels.length > 1
+              ? "agent_specific_model_routing"
+              : "single_primary_model_route",
+          envOverrideActive: Boolean(process.env.ZERO_G_COMPUTE_MODEL),
         },
         storage: {
           provider: storageConfig.isConfigured ? "0G_STORAGE" : "LOCAL_FALLBACK",

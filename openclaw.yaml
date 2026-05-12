@@ -55,7 +55,7 @@ orchestration:
     - id: researcher
       label: Research Agent
       skill: research-extraction
-      model: qwen3.6-plus
+      model: deepseek/deepseek-chat-v3-0324
       temperature: 0.3
       max_tokens: 1500
       structured_output: true
@@ -68,7 +68,7 @@ orchestration:
     - id: risk_agent
       label: Risk Agent
       skill: web3-risk-analysis
-      model: zai-org/GLM-5-FP8
+      model: deepseek/deepseek-chat-v3-0324
       temperature: 0.2
       max_tokens: 1500
       structured_output: true
@@ -83,7 +83,7 @@ orchestration:
     - id: architect
       label: Architect Agent
       skill: architecture-design
-      model: qwen3.6-plus
+      model: deepseek/deepseek-chat-v3-0324
       temperature: 0.3
       max_tokens: 1500
       structured_output: true
@@ -98,7 +98,7 @@ orchestration:
     - id: critic
       label: Critic Agent (Adversarial)
       skill: adversarial-review
-      model: zai-org/GLM-5.1-FP8
+      model: deepseek/deepseek-chat-v3-0324
       temperature: 0.8
       max_tokens: 1500
       structured_output: true
@@ -138,7 +138,7 @@ orchestration:
     - id: memory_writer
       label: Memory Writer
       skill: persistent-memory-writing
-      model: deepseek/deepseek-chat-v3-0324
+      model: all-MiniLM-L6-v2 + 0G Storage
       temperature: 0.1
       max_tokens: 500
       structured_output: true
@@ -162,21 +162,22 @@ skills:
     model_family: deepseek
   - id: research-extraction
     description: Extracts project claims, assumptions, stakeholders, and missing information.
-    model_family: qwen
+    model_family: deepseek
   - id: web3-risk-analysis
     description: Identifies custody, oracle, governance, tokenomics, security, and automation risks.
-    model_family: glm
+    model_family: deepseek
   - id: architecture-design
     description: Proposes agent, infra, storage, and execution-control architecture.
-    model_family: qwen
+    model_family: deepseek
   - id: adversarial-review
-    description: Hostile cross-model adversarial review. Runs on a different model family (GLM) at temperature 0.8 to prevent self-confirmation bias. Challenges assumptions, identifies blind spots, and flags optimism bias.
+    description: Hostile adversarial review. Runs as a separate high-temperature Critic role on the production 0G Compute route. Challenges assumptions, identifies blind spots, and flags optimism bias.
+    model_family: deepseek
   - id: decision-synthesis
     description: Converts agent outputs into a structured score, recommendation, risks, opportunities, and next steps.
     model_family: deepseek
   - id: persistent-memory-writing
     description: Stores distilled analysis memory with embeddings and persists the memory index to 0G Storage.
-    model_family: deepseek
+    model_family: local_embeddings
 
 artifacts:
   reports:
@@ -208,22 +209,15 @@ zero_g_integration:
     endpoint: https://router-api.0g.ai/v1/chat/completions
     models:
       - id: deepseek/deepseek-chat-v3-0324
-        roles: [planner, final_agent, memory_writer]
+        roles: [planner, researcher, risk_agent, architect, critic, final_agent]
         family: deepseek
-      - id: qwen3.6-plus
-        roles: [researcher, architect]
-        family: qwen
-      - id: zai-org/GLM-5-FP8
-        roles: [risk_agent]
-        family: glm
-      - id: zai-org/GLM-5.1-FP8
-        roles: [critic]
-        family: glm
-    strategy: diversity_of_reasoning
+    strategy: single_primary_model_route
     strategy_description: >
-      Different model families (deepseek, qwen, GLM) have different training data,
-      RLHF priors, and refusal patterns. Routing critical roles to different families
-      reduces correlated errors and prevents single-vendor blind spots.
+      Production inference currently routes all LLM agents through the stable
+      DeepSeek route on 0G Compute. Agent diversity comes from separate roles,
+      role-specific prompts, Critic temperature, and explicit score-adjustment
+      math. Additional 0G Compute models remain configurable in the runtime
+      model router when availability allows.
   storage:
     provider: 0G_STORAGE
     indexer_rpc: https://indexer-storage-turbo.0g.ai
