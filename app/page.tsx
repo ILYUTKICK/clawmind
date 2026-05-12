@@ -137,7 +137,7 @@ export default async function LandingPage() {
         eyebrow="AGENTIC INFRASTRUCTURE · 0G MAINNET · OPEN SOURCE"
         headline="Multi-agent Web3 due diligence with on-chain verifiable receipts."
         subhead="Specialized agents — Planner, Researcher, Risk, Architect, Critic, Final — analyze a Web3 project end-to-end. Each report is hashed, signed by an authorized operator, and recorded on 0G Chain."
-        primaryCta={{ label: "Run analysis →", href: "/analyze" }}
+        primaryCta={{ label: "Run analysis →", href: "/analysis" }}
         secondaryCta={{ label: "See live data ↗", href: "/stats" }}
       />
       <LiveTicker

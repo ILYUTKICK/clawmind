@@ -5,6 +5,6 @@ export const metadata = {
   description: "Run the ClawMind multi-agent Web3 due diligence pipeline.",
 };
 
-export default function AnalyzePage() {
+export default function AnalysisPage() {
   return <AnalyzeExperience />;
 }

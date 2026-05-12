@@ -44,7 +44,7 @@ export function LandingNav() {
             MCP integration
           </a>
           <Link
-            href="/analyze"
+            href="/analysis"
             className="rounded-lg bg-[var(--cm-accent)] px-3 py-2 text-sm font-medium text-black transition hover:bg-teal-300"
           >
             Run analysis →
