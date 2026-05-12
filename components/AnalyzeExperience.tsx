@@ -71,42 +71,42 @@ const AGENT_ORDER: AgentName[] = [
 const AGENT_META: Record<AgentName, { label: string; model: string; idle: string }> = {
   memory_retrieval: {
     label: "Memory Retrieval",
-    model: "embeddings/all-MiniLM-L6-v2",
+    model: "all-MiniLM-L6-v2",
     idle: "Retrieve semantic precedents from the 0G-backed memory index.",
   },
   planner: {
     label: "Planner",
-    model: "deepseek-chat-v3",
+    model: "0G Compute route",
     idle: "Break task into research, risk, architecture, and verification tracks.",
   },
   researcher: {
     label: "Researcher",
-    model: "qwen-2.5-72b",
+    model: "0G Compute route",
     idle: "Collect project facts, constraints, and external risk signals.",
   },
   risk_agent: {
     label: "Risk Assessment",
-    model: "glm-4.5-air",
+    model: "0G Compute route",
     idle: "Score custody, governance, operational, and economic exposure.",
   },
   architect: {
     label: "Architect",
-    model: "deepseek-chat-v3",
+    model: "0G Compute route",
     idle: "Build an attack tree and system-level threat model.",
   },
   critic: {
     label: "Critic",
-    model: "claude-haiku-4-5",
+    model: "0G Compute route",
     idle: "Challenge conclusions and apply unresolved severity penalties.",
   },
   final_agent: {
     label: "Final Synthesis",
-    model: "deepseek-chat-v3",
+    model: "0G Compute route",
     idle: "Combine agent outputs into a final score, recommendation, and report.",
   },
   memory_writer: {
     label: "Memory Writer",
-    model: "embeddings/all-MiniLM-L6-v2",
+    model: "all-MiniLM-L6-v2 + 0G Storage",
     idle: "Persist the completed report into runtime semantic memory.",
   },
 };
@@ -325,7 +325,7 @@ function MetricsPanel({
         <span className="uppercase text-[10px] tracking-[0.06em] text-[var(--cm-text-muted)]">Steps completed</span>
         <span>{completed} of 8</span>
         <span className="uppercase text-[10px] tracking-[0.06em] text-[var(--cm-text-muted)]">Models observed</span>
-        <span>{models.size || 0} of 5</span>
+        <span>{models.size > 0 ? `${models.size} active` : "pending"}</span>
         <div className="col-span-2 my-1 border-t border-dashed border-[var(--cm-border-emphasis)]" />
         <span className="uppercase text-[10px] tracking-[0.06em] text-[var(--cm-text-muted)]">Projected finish</span>
         <span>{isLoading ? "~30-60s" : completed === 8 ? "complete" : "pending"}</span>

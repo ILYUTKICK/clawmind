@@ -5,6 +5,7 @@ import { runPlannerAgent } from "@/lib/agents/planner";
 import { runResearchAgent } from "@/lib/agents/researcher";
 import { runRiskAgent } from "@/lib/agents/risk-agent";
 import { getComputeProviderLabel } from "@/lib/compute/compute-status";
+import { getModelForAgent } from "@/lib/compute/model-router";
 import { formatMemoryContext, getRelevantMemories, saveGeneratedMemoryRecord } from "@/lib/memory/memory-manager";
 import { rememberLatestMemoryIndexUri } from "@/lib/memory/persistent-memory-store";
 import { saveAnalysisReceipt } from "@/lib/storage/storage-receipt";
@@ -18,11 +19,15 @@ function nowIso(): string {
 }
 
 function createRunningStep(name: AgentName, label: string, input: string): AgentStep {
+  const modelConfig = getModelForAgent(name);
+
   return {
     name,
     label,
     status: "running",
     input,
+    model: modelConfig.model,
+    modelFamily: "0G Compute",
     startedAt: nowIso(),
   };
 }
@@ -85,6 +90,8 @@ export async function runAnalysis(
     label: "Memory Retrieval",
     status: "completed",
     input: task,
+    model: "all-MiniLM-L6-v2",
+    modelFamily: "Local embeddings",
     output: [
       `Found ${relevantMemories.length} relevant memory record(s).`,
       "Memory source: local cache + 0G Storage memory index when available.",
@@ -277,6 +284,8 @@ export async function runAnalysis(
         2,
       ),
       output: memoryWriterLines.join(" "),
+      model: "all-MiniLM-L6-v2",
+      modelFamily: "Local embeddings + 0G Storage",
       startedAt: nowIso(),
       finishedAt: nowIso(),
     },
