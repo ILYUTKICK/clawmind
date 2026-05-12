@@ -17,7 +17,7 @@ import { getAllMemories, getRelevantMemories } from "@/lib/memory/memory-manager
 import { getLatestMemoryIndexUri } from "@/lib/memory/persistent-memory-store";
 import { isSemanticRetrievalActive } from "@/lib/embeddings/embedding-provider";
 import { getAnalysisMetricsSummary } from "@/lib/metrics/analysis-metrics";
-import type { AnalysisMetricsSummary } from "@/lib/metrics/analysis-metrics";
+import type { AnalysisMetric, AnalysisMetricsSummary } from "@/lib/metrics/analysis-metrics";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -146,6 +146,7 @@ type JudgeData = {
   scoreDistribution: JudgeScoreDistribution;
   criticEffectiveness: AnalysisMetricsSummary["critic"];
   mcpUsage: JudgeMcpUsageStats;
+  analysisMetricsRecent: AnalysisMetric[];
 
   // Memory stats
   memory: JudgeMemoryStats;
@@ -500,6 +501,7 @@ export async function GET(): Promise<NextResponse> {
       scoreDistribution,
       criticEffectiveness: metricsSummary.critic,
       mcpUsage,
+      analysisMetricsRecent: metricsSummary.recent.slice(0, 10),
       memory,
       generatedAt: new Date().toISOString(),
     };
