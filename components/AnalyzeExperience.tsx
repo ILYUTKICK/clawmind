@@ -38,7 +38,7 @@ const EXAMPLES: ExampleTask[] = [
   {
     label: "Mature audited fork",
     prediction: "GO",
-    task: "Mature Uniswap V3 fork on Base, $42M TVL, two independent audits (Trail of Bits + Halborn), doxxed core team, 7-day timelock on all admin functions, no upgradeability outside multisig. No new financial primitives.",
+    task: "Mature Uniswap V3 fork on Base, $60M TVL, two independent audits (Trail of Bits + Halborn), non-custodial pools, no external oracle dependency, doxxed core team, active governance, 7-day timelock on all admin functions, no upgradeability outside multisig. No new financial primitives.",
   },
   {
     label: "Private key in env",

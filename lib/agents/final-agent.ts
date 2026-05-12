@@ -268,6 +268,10 @@ function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
     /\b2 independent audits?\b/,
     /\btwo audits?\b/,
     /\bmature protocol\b/,
+    /\b40m\+? tvl\b/,
+    /\$4[0-9]m\b/,
+    /\$[5-9][0-9]m\b/,
+    /\b[5-9][0-9]m\+? tvl\b/,
     /\b100m tvl\b/,
     /\$100m\b/,
   ]);
@@ -276,9 +280,14 @@ function detectScoreProfile(input: FinalAgentInput): ScoreProfile {
     /\bno external oracle\b/,
     /\bnon-custodial\b/,
     /\bno custody\b/,
+    /\btimelock\b/,
+    /\bno upgradeability outside multisig\b/,
+    /\bno admin keys?\b/,
+    /\bimmutable core contracts?\b/,
     /\bguarded admin controls?\b/,
     /\bguarded admin\b/,
     /\bgovernance active\b/,
+    /\bactive governance\b/,
   ]);
 
   if (matureProtocol && explicitSafety && !taskMissingGuards) {
@@ -835,7 +844,7 @@ export async function runFinalAgent(input: FinalAgentInput): Promise<{
       "  Expected: score 45-55, recommendation INVESTIGATE_MORE",
       "  Reasoning: Innovation is positive but unproven, team credibility missing.",
       "",
-      "Calibration anchor: If the task describes a mature, multi-audited protocol with $50M+ TVL and active governance, score should land in the 75-90 range unless the Critic raised unresolved HIGH challenges tied to direct custody, private keys, unrestricted admin control, or fund loss.",
+      "Calibration anchor: If the task describes a mature, multi-audited protocol/fork with $40M+ TVL, non-custodial design, timelocked/guarded admin controls, and no new custody or oracle surface, score should land in the 75-90 range unless the Critic raised unresolved HIGH challenges tied to direct custody, private keys, unrestricted admin control, or fund loss.",
       "Calibration anchor: If the task describes a novel AMM/TWAP/oracle mechanism with one audit, low-to-mid TVL, or an anonymous team, classify it as INVESTIGATE_MORE in the 40-60 range unless it also includes direct custody, exposed private keys, or automated user-fund execution.",
       "",
       "RECOMMENDATION RULES:",
