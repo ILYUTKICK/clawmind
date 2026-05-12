@@ -7,12 +7,17 @@ ClawMind runs multi-agent Web3 due diligence and anchors the final report on 0G 
 | Surface | URL |
 |---|---|
 | Live app | https://clawmind-puce.vercel.app |
+| Run analysis | https://clawmind-puce.vercel.app/analysis |
 | Judge mode | https://clawmind-puce.vercel.app/judge |
 | Public stats | https://clawmind-puce.vercel.app/stats |
 | Judge API | https://clawmind-puce.vercel.app/api/judge |
 | MCP server | https://clawmind-mcp.vercel.app/mcp |
 | OpenClaw manifest | https://clawmind-puce.vercel.app/api/openclaw/manifest?format=json |
 | 0G contract | https://chainscan.0g.ai/address/0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1 |
+
+## Live Proof Snapshot
+
+Current live evidence is exposed at `/stats` and `/api/judge`: signed registry writes, recent on-chain analyses, runtime memory growth, critic effectiveness, and MCP usage are all available as public UI and JSON.
 
 ## Problem
 
@@ -65,7 +70,7 @@ The UI shows how many challenges were raised, how many were resolved, and how th
 |---|---|
 | Contract address is consistent | Open the 0G explorer link above and compare it with `/api/judge` and `.env.example`. |
 | Pipeline has 8 steps | Open `/api/judge` and check `pipelineSteps: 8`. |
-| Scores are calibrated | Open `/api/judge` and inspect `recentAnalyses` for different scores and recommendations. |
+| Scores are calibrated | Run the example test tasks and inspect `/api/judge` for varied scores and recommendations. |
 | Semantic memory is active | Open `/api/judge` and check `memory.semanticRetrievalActive: true`. |
 | Reports are persisted | Run an analysis and check the decision receipt for `provider: "0G_STORAGE"` and a `0g://` URI. |
 | On-chain anchoring works | Run an analysis and open the transaction from the on-chain receipt. |
@@ -150,6 +155,8 @@ curl -X POST https://clawmind-puce.vercel.app/api/analyze \
 ## MCP Server
 
 ClawMind also runs as a remote MCP server for Claude Desktop, Cursor, and other MCP-compatible clients.
+
+MCP requests require `X-MCP-Client-Id`; tool calls are rate-limited to one request per 60 seconds per client.
 
 ```json
 {
