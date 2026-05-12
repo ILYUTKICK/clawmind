@@ -483,7 +483,7 @@ function InputPhase({
           {isLoading ? "Running analysis..." : "Run analysis →"}
         </button>
         <p className="text-center [font-family:var(--cm-font-mono)] text-[11px] text-[var(--cm-text-muted)]">
-          8 agents · multi-model · est. 30-60s · ~$0.03 · signed and recorded on 0G
+          8 agents · 0G Compute · est. 30-60s · ~$0.03 · signed and recorded on 0G
         </p>
       </div>
     </section>
