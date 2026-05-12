@@ -711,6 +711,12 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Link
+                href="/"
+                className="rounded-lg border border-[var(--cm-border)] px-4 py-2 text-sm text-[var(--cm-text-secondary)] transition hover:border-[var(--cm-accent)] hover:text-teal-200"
+              >
+                Main page
+              </Link>
               <div className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-surface)] px-3 py-2 font-mono text-xs text-[var(--cm-text-muted)]">
                 <span className="text-[var(--cm-text-secondary)]">last update</span>{" "}
                 {formatAge(Math.floor(generatedAtMs / 1_000), nowMs)}

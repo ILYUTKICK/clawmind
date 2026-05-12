@@ -363,24 +363,32 @@ export default function JudgePage() {
               </p>
             </div>
 
-            <div className="flex flex-col gap-1 text-sm text-zinc-400">
-              <p>
-                <span className="text-zinc-200">Network:</span>{" "}
-                <span className={data.network.name === "mainnet" ? "text-emerald-300 font-semibold" : "text-yellow-300"}>
-                  {data.network.name.toUpperCase()}
-                </span>
-                <span className="text-zinc-500 ml-1">(Chain {data.network.chainId})</span>
-              </p>
-              <p>
-                <span className="text-zinc-200">Explorer:</span>{" "}
-                <ExplorerLink href={data.network.explorerBaseUrl}>
-                  {data.network.explorerBaseUrl.replace("https://", "")}
-                </ExplorerLink>
-              </p>
-              <p>
-                <span className="text-zinc-200">Generated:</span>{" "}
-                {new Date(data.generatedAt).toLocaleString()}
-              </p>
+            <div className="flex flex-col gap-4 text-sm text-zinc-400 lg:items-end">
+              <Link
+                href="/"
+                className="w-fit rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-zinc-200 transition hover:border-cyan-400/40 hover:text-cyan-200"
+              >
+                Main page
+              </Link>
+              <div className="flex flex-col gap-1 lg:items-end">
+                <p>
+                  <span className="text-zinc-200">Network:</span>{" "}
+                  <span className={data.network.name === "mainnet" ? "text-emerald-300 font-semibold" : "text-yellow-300"}>
+                    {data.network.name.toUpperCase()}
+                  </span>
+                  <span className="text-zinc-500 ml-1">(Chain {data.network.chainId})</span>
+                </p>
+                <p>
+                  <span className="text-zinc-200">Explorer:</span>{" "}
+                  <ExplorerLink href={data.network.explorerBaseUrl}>
+                    {data.network.explorerBaseUrl.replace("https://", "")}
+                  </ExplorerLink>
+                </p>
+                <p>
+                  <span className="text-zinc-200">Generated:</span>{" "}
+                  {new Date(data.generatedAt).toLocaleString()}
+                </p>
+              </div>
             </div>
           </div>
         </header>

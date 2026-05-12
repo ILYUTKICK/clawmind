@@ -820,6 +820,9 @@ export default function AnalyzeExperience() {
         </div>
 
         <nav className="flex items-center gap-2">
+          <Link href="/" className="rounded-md border border-[var(--cm-border)] px-3 py-2 text-xs text-[var(--cm-text-secondary)] transition hover:border-[var(--cm-border-emphasis)] hover:text-[var(--cm-text-primary)]">
+            Main page
+          </Link>
           <Link href="/stats" className="rounded-md border border-[var(--cm-border)] px-3 py-2 text-xs text-[var(--cm-text-secondary)] transition hover:border-[var(--cm-border-emphasis)] hover:text-[var(--cm-text-primary)]">
             Stats
           </Link>
