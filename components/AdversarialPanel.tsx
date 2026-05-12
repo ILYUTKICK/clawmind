@@ -32,6 +32,21 @@ const CHALLENGED_AGENTS: {
   { name: "architect", label: "Architect", token: "AR" },
 ];
 
+const AGENT_CLAIMS: {
+  name: AgentStep["name"];
+  label: string;
+  token: string;
+}[] = [
+  { name: "memory_retrieval", label: "Memory Retrieval", token: "MR" },
+  { name: "planner", label: "Planner", token: "PL" },
+  { name: "researcher", label: "Researcher", token: "RS" },
+  { name: "risk_agent", label: "Risk Agent", token: "RK" },
+  { name: "architect", label: "Architect", token: "AR" },
+  { name: "critic", label: "Critic", token: "CR" },
+  { name: "final_agent", label: "Final Agent", token: "FN" },
+  { name: "memory_writer", label: "Memory Writer", token: "MW" },
+];
+
 const SEVERITY_META: Record<
   ChallengeSeverity,
   { label: string; penalty: number; className: string; title: string }
@@ -189,6 +204,8 @@ function buildChallengeRows(
 function extractPerAgentResolution(
   finalOutput: string | undefined,
   agentName: AgentStep["name"],
+  challenge?: ChallengeRow,
+  agentClaim?: string,
 ): string {
   if (!finalOutput) {
     return "Final synthesis has not completed yet.";
@@ -209,7 +226,18 @@ function extractPerAgentResolution(
     }
   }
 
-  return truncate(finalOutput, 190);
+  if (challenge) {
+    const claim = agentClaim && !agentClaim.startsWith("Waiting for analysis.")
+      ? ` Agent claim: ${extractClaim(agentClaim, 110)}`
+      : "";
+    const prefix = challenge.status === "resolved"
+      ? "Final Agent marked this challenge resolved"
+      : "Final Agent left this challenge unresolved";
+
+    return truncate(`${prefix}: ${challenge.explanation || challenge.summary}.${claim}`, 190);
+  }
+
+  return truncate(extractClaim(agentClaim) || finalOutput, 190);
 }
 
 function recommendationClass(recommendation: AnalysisReport["recommendation"] | undefined): string {
@@ -360,7 +388,7 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
           </p>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-4">
-          {CHALLENGED_AGENTS.map((agent) => (
+          {AGENT_CLAIMS.map((agent) => (
             <div key={agent.name} className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4 opacity-60">
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--cm-border)] font-mono text-xs text-[var(--cm-text-muted)]">
                 {agent.token}
@@ -399,7 +427,7 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
-          <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4">
+          <div id="critic-challenges" className="scroll-mt-24 rounded-lg border border-[var(--cm-border)] bg-black/20 p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-[var(--cm-text-primary)]">Critic challenges</h3>
               {criticStep?.status === "running" ? (
@@ -439,18 +467,23 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
           <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4">
             <h3 className="mb-4 text-sm font-semibold text-[var(--cm-text-primary)]">Agent claims</h3>
             <div className="grid gap-3 md:grid-cols-2">
-              {CHALLENGED_AGENTS.map((agent) => {
+              {AGENT_CLAIMS.map((agent) => {
                 const step = stepMap.get(agent.name);
                 const inactive = !step || step.status === "pending";
+                const isCritic = agent.name === "critic";
 
                 return (
-                  <div key={agent.name} className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-background)] p-4">
+                  <div
+                    id={`agent-claim-${agent.name}`}
+                    key={agent.name}
+                    className={`scroll-mt-24 rounded-lg border bg-[var(--cm-background)] p-4 ${isCritic ? "border-[var(--cm-warning)]/45" : "border-[var(--cm-border)]"}`}
+                  >
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--cm-border)] font-mono text-xs text-[var(--cm-text-muted)]">
+                      <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border font-mono text-xs ${isCritic ? "border-[var(--cm-warning)]/50 text-amber-200" : "border-[var(--cm-border)] text-[var(--cm-text-muted)]"}`}>
                         {agent.token}
                       </span>
                       <div>
-                        <p className="text-sm font-semibold text-[var(--cm-text-primary)]">{agent.label}</p>
+                        <p className={`text-sm font-semibold ${isCritic ? "text-amber-100" : "text-[var(--cm-text-primary)]"}`}>{agent.label}</p>
                         <p className="text-[11px] text-[var(--cm-text-muted)]">{step?.status ?? "pending"}</p>
                       </div>
                     </div>
@@ -467,7 +500,7 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
         <div className="space-y-4">
           <ScoreMath report={report} challengeRows={challengeRows} />
 
-          <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4">
+          <div id="final-reconciliation" className="scroll-mt-24 rounded-lg border border-[var(--cm-border)] bg-black/20 p-4">
             <h3 className="text-sm font-semibold text-[var(--cm-text-primary)]">Final Agent reconciliation</h3>
             {finalCompleted ? (
               <div className="mt-4 space-y-3">
@@ -479,17 +512,21 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
                   summary: "No critic challenge for this agent.",
                   explanation: "",
                   status: "resolved" as ChallengeStatus,
-                }))).map((challenge) => (
-                  <div key={challenge.id} className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-background)] p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold text-zinc-300">{challenge.agentLabel}</p>
-                      <StatusBadge status={challenge.status} />
+                }))).map((challenge) => {
+                  const agentClaim = stepMap.get(challenge.agentName)?.output;
+
+                  return (
+                    <div key={challenge.id} className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-background)] p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold text-zinc-300">{challenge.agentLabel}</p>
+                        <StatusBadge status={challenge.status} />
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-[var(--cm-text-muted)]">
+                        {extractPerAgentResolution(finalStep?.output, challenge.agentName, challenge, agentClaim)}
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs leading-5 text-[var(--cm-text-muted)]">
-                      {extractPerAgentResolution(finalStep?.output, challenge.agentName)}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-[var(--cm-text-muted)]">

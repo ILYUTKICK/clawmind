@@ -579,16 +579,26 @@ function ScoreTransition({ analysis }: { analysis: AnalysisResult }) {
   return (
     <div className="flex flex-col items-center gap-5 border-b border-[var(--cm-border)] px-5 py-8 text-center">
       <div className="flex max-w-5xl flex-wrap justify-center gap-2">
-        {AGENT_ORDER.map((name, index) => (
-          <span
-            key={name}
-            className="inline-flex items-center gap-2 rounded-md border border-[var(--cm-border)] bg-[var(--cm-surface)] px-3 py-1 [font-family:var(--cm-font-mono)] text-[11px] text-[var(--cm-text-muted)]"
-          >
-            <span className="text-[var(--cm-accent)]">✓</span>
-            <b className="font-medium text-[var(--cm-text-secondary)]">{String(index + 1).padStart(2, "0")}</b>
-            {AGENT_META[name].label}
-          </span>
-        ))}
+        {AGENT_ORDER.map((name, index) => {
+          const isCritic = name === "critic";
+
+          return (
+            <a
+              key={name}
+              href={`#agent-claim-${name}`}
+              className={`inline-flex items-center gap-2 rounded-md border bg-[var(--cm-surface)] px-3 py-1 [font-family:var(--cm-font-mono)] text-[11px] transition hover:-translate-y-0.5 hover:text-[var(--cm-text-primary)] ${
+                isCritic
+                  ? "border-[var(--cm-warning)]/60 text-amber-200 shadow-[0_0_0_1px_rgba(245,158,11,0.12)]"
+                  : "border-[var(--cm-border)] text-[var(--cm-text-muted)] hover:border-[var(--cm-border-emphasis)]"
+              }`}
+              title={`Jump to ${AGENT_META[name].label} claim`}
+            >
+              <span className={isCritic ? "text-[var(--cm-warning)]" : "text-[var(--cm-accent)]"}>✓</span>
+              <b className={`font-semibold ${isCritic ? "text-amber-100" : "text-[var(--cm-text-secondary)]"}`}>{String(index + 1).padStart(2, "0")}</b>
+              <span className={isCritic ? "font-semibold" : ""}>{AGENT_META[name].label}</span>
+            </a>
+          );
+        })}
       </div>
 
       <div className="flex flex-col items-center gap-3">
