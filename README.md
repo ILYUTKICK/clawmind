@@ -81,13 +81,15 @@ The UI shows how many challenges were raised, how many were resolved, and how th
 
 ## Contract History
 
-The canonical live registry is the signed EIP-712 registry:
+The Judge API and production app always point to the current signed registry.
 
-```text
-0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1
-```
+| Version | Address | Status | Purpose |
+|---|---|---|---|
+| v3 current | `0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1` | Active | Production registry with EIP-712 operator signatures |
+| v2 | `0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2` | Historical | Earlier open-write registry used before operator authentication |
+| v1 | `0x8d53153a8a25c81701954eed66154b3ebba8b8c7` | Historical | Earliest registry prototype |
 
-An earlier hackathon iteration used an open-write registry at `0x01c9d988cbC2c369CB18B952C01a5Da05bF034D2`. The production judge flow now uses the signed registry above with `ZERO_G_ALLOW_LEGACY_REGISTRY_WRITES=false`.
+Only the v3 registry is used by `/api/judge`, `/stats`, `/analysis`, and the MCP flow. Production is configured with `ZERO_G_ALLOW_LEGACY_REGISTRY_WRITES=false`.
 
 ## Verification Checklist
 
@@ -158,6 +160,27 @@ node scripts/deploy-registry.mjs
 
 The deployed address should replace `ZERO_G_ANALYSIS_REGISTRY_ADDRESS`. The deployer wallet is authorized as the first EIP-712 operator.
 
+### Docker
+
+Docker runs the Next.js app locally. Live 0G Compute, Storage, Chain, and Redis-backed metrics still require the environment variables above.
+
+```bash
+docker build -t clawmind .
+docker run --env-file .env -p 3000:3000 clawmind
+```
+
+Then open `http://localhost:3000`.
+
+## Verification Commands
+
+```bash
+npm run lint
+npm run build
+cd contracts && forge test -vv
+```
+
+The main app is checked with ESLint and a production Next.js build. The signed registry has Foundry tests in `contracts/test/AnalysisRegistry.t.sol` and a GitHub Actions workflow at `.github/workflows/foundry-tests.yml`.
+
 ## API
 
 ```bash
@@ -218,6 +241,7 @@ components/
   ReportView.tsx
 contracts/
   AnalysisRegistry.sol
+  test/AnalysisRegistry.t.sol
 lib/
   agents/
   compute/
@@ -225,5 +249,7 @@ lib/
   embeddings/
   orchestrator/
   storage/
+Dockerfile
+DEMO_SCRIPT.md
 openclaw.yaml
 ```

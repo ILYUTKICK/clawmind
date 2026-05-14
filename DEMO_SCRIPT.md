@@ -1,289 +1,210 @@
 # ClawMind Demo Script
 
+Target length: 3-5 minutes. Record in the browser only; do not show `.env`, Vercel settings, terminal history, or private keys.
+
 ## One-line Pitch
 
-ClawMind is a persistent multi-agent cognitive backbone for autonomous Web3 decision-making, powered by 0G Compute and 0G Storage.
+ClawMind runs multi-agent due diligence on Web3 projects and records each report with verifiable 0G Storage and 0G Chain receipts.
 
----
+## Demo Prompt
 
-## 30-second Pitch
-
-ClawMind is not a chatbot. It is a multi-agent decision engine for Web3 and AI builders.
-
-It takes a project idea, retrieves relevant memory, runs a specialized agent pipeline, generates a structured risk report, and stores the final result in 0G Storage.
-
-The project is built for 0G APAC Track 1 because it focuses on agent orchestration, specialized Skills, 0G Compute inference, and 0G Storage-based state persistence.
-
----
-
-## 0G Compute Router
-
-ClawMind uses the 0G Compute Router testnet endpoint for agent inference:
+Use a high-risk case so the Critic and score adjustment are easy to see:
 
 ```txt
-https://router-api.0g.ai/v1/chat/completions
-
-The current demo model (mainnet):
-
-deepseek/deepseek-chat-v3-0324
-
-Other available mainnet models: qwen3.6-plus, zai-org/GLM-5-FP8, zai-org/GLM-5.1-FP8
-(qwen/qwen-2.5-7b-instruct is TESTNET ONLY)
-
-During the demo, each specialized agent call goes through the shared compute abstraction layer:
-
-lib/compute/zero-g-compute.ts
-
-If 0G Compute is unavailable, ClawMind can fall back to local deterministic inference for demo reliability.
+Self-custodial Web3 agent that auto-trades user funds. The private key is stored in an environment variable. There are no withdrawal guards, no multisig, no circuit breaker, and no user approval step before trades.
 ```
 
----
+## Tabs to Open Before Recording
 
-## 1-minute Demo Script
+1. `https://clawmind-puce.vercel.app`
+2. `https://clawmind-puce.vercel.app/stats`
+3. `https://clawmind-puce.vercel.app/analysis`
+4. `https://clawmind-puce.vercel.app/judge`
+5. `https://clawmind-puce.vercel.app/api/openclaw/manifest?format=json`
+6. `https://chainscan.0g.ai/address/0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1`
+7. `https://clawmind-mcp.vercel.app/mcp`
 
-Today I am showing ClawMind, a persistent multi-agent cognitive backbone for autonomous Web3 decision-making.
+## 0:00-0:25 - Product Overview
 
-The problem is that Web3 builders often evaluate projects using fragmented information: protocol docs, GitHub, tokenomics, security assumptions, and previous research. Normal LLM tools start from zero every time.
+Show the landing page.
 
-ClawMind solves this by using a modular agent pipeline.
+Voiceover:
 
-When I submit a Web3 AI protocol idea, ClawMind first retrieves relevant memories. Then it runs several specialized agents:
+> This is ClawMind, a multi-agent due diligence platform for Web3 projects. A user submits a project description, eight pipeline stages analyze it, an adversarial Critic challenges the conclusions, and the final report is stored, signed, and recorded on 0G mainnet.
+
+Point at the primary routes:
+
+- Run analysis: `/analysis`
+- Live telemetry: `/stats`
+- Judge mode: `/judge`
+
+## 0:25-0:55 - Live 0G Evidence
+
+Open `/stats`.
+
+Show:
+
+- Total on-chain analyses
+- Signed registry status
+- Memory records
+- Latest registry entries
+- MCP initiated count
+
+Voiceover:
+
+> This dashboard is backed by the public Judge API. It shows live 0G mainnet activity: on-chain registry entries, EIP-712 signed operator status, runtime memory growth, Critic effectiveness, and MCP usage.
+
+If the numbers have changed, read the numbers on screen instead of hard-coding them in the narration.
+
+## 0:55-1:15 - Start a New Analysis
+
+Open `/analysis`, paste the demo prompt, and click `Run analysis`.
+
+Voiceover:
+
+> I will run a high-risk example: an agent that can auto-trade user funds with a private key in an environment variable and no withdrawal guards.
+
+## 1:15-2:05 - Explain the 8-step Pipeline
+
+Show the live pipeline while it runs. If it takes too long, jump cut to the completed state.
+
+Voiceover:
+
+> The pipeline has eight stages. Memory Retrieval searches previous analyses using semantic embeddings. Planner decomposes the task. Researcher extracts facts and assumptions. Risk Agent identifies custody, governance, operational, and economic risks. Architect proposes mitigations. Critic adversarially challenges prior conclusions. Final Synthesis produces the score and recommendation. Memory Writer appends the result back into persistent memory.
+
+Explain 0G Compute:
+
+> The LLM agent steps are routed through 0G Compute via the 0G Router. The production deployment currently uses the stable DeepSeek route, and the model router keeps fallback routing configurable in the codebase.
+
+## 2:05-2:45 - Critic and Score Adjustment
+
+Show the final report, score, recommendation, and Adversarial/Critic panel.
+
+Voiceover:
+
+> The Critic is not cosmetic. Each unresolved challenge changes the final score: high severity subtracts 15 points, medium subtracts 7, and low subtracts 3. In this example, custody, private-key, and missing-control issues push the recommendation toward NO_GO.
+
+Show the score adjustment math if visible:
 
 ```txt
-Planner
-Researcher
-Risk Agent
-Architect
-Critic
-Final Decision Agent
-Memory Writer
+Initial score
+High severity penalties
+Medium severity penalties
+Final score
 ```
 
-Each agent produces an intermediate output, and the orchestrator combines everything into a structured final report.
+## 2:45-3:20 - 0G Storage and Persistent Memory
 
-The report includes:
+Show the receipt / report URI / Memory Writer output.
 
-- risk map
-- opportunity analysis
-- architecture suggestions
-- next steps
-- final score
-- recommendation
+Voiceover:
 
-The key part is that ClawMind uses 0G Compute as the inference layer and 0G Storage to persist the final report.
+> The final report is persisted to 0G Storage. The receipt includes a root hash and a `0g://` URI. The Memory Writer also stores a distilled memory record, so future analyses can retrieve relevant prior context through semantic similarity.
 
-Here, the Decision Receipt shows:
+Point at:
+
+- `provider: 0G_STORAGE`
+- `rootHash`
+- `storageUri`
+- memory record or memory index URI
+
+## 3:20-3:55 - 0G Chain and EIP-712
+
+Show the Integrity panel or on-chain receipt. Open the explorer if the link is visible.
+
+Voiceover:
+
+> After storage succeeds, ClawMind signs the analysis with an authorized operator using EIP-712 typed data. The AnalysisRegistry smart contract verifies that signature and records the report root hash, score, recommendation, storage URI, and operator proof on 0G Chain mainnet.
+
+Point at:
+
+- Signed by `0x9A0C...99F8`
+- Contract `0x08a9...e2b1`
+- Transaction hash or explorer link
+- `SIGNED_OPERATOR`
+
+## 3:55-4:35 - MCP as Infrastructure Surface
+
+Open the MCP endpoint or README MCP block.
+
+Voiceover:
+
+> ClawMind is not only a web UI. It is also exposed as a remote MCP server, so Claude Desktop, Cursor, or any MCP-compatible client can call the same production pipeline. The MCP server is intentionally small: one tool runs due diligence, and one tool reads recent signed analyses.
+
+Show the config:
+
+```json
+{
+  "mcpServers": {
+    "clawmind": {
+      "url": "https://clawmind-mcp.vercel.app/mcp",
+      "headers": {
+        "X-MCP-Client-Id": "demo-client"
+      }
+    }
+  }
+}
+```
+
+Add:
+
+> MCP calls still go through the same `/api/analyze` backend, so they get the same 0G Storage persistence, EIP-712 signing, and 0G Chain registry flow as web-initiated analyses.
+
+## 4:35-4:55 - Judge Mode and OpenClaw Manifest
+
+Open `/judge` and `/api/openclaw/manifest?format=json`.
+
+Voiceover:
+
+> For judges, ClawMind exposes a dedicated Judge Mode and an OpenClaw manifest. These show the eight-step pipeline, 0G Compute, 0G Storage, 0G Chain, semantic memory, and signed registry evidence without requiring a wallet.
+
+Point at:
+
+- `pipelineSteps: 8`
+- `signatureVerified: true`
+- `provider: 0G_COMPUTE`
+- `provider: 0G_STORAGE`
+- `semanticRetrievalActive: true`
+
+## 4:55-5:10 - Close
+
+Return to landing or `/stats`.
+
+Voiceover:
+
+> ClawMind is a due-diligence aid, not a replacement for human security review. The value is reproducibility: multi-agent reasoning, persistent memory, MCP access, and verifiable 0G receipts for every report.
+
+Final frame:
 
 ```txt
-Provider: 0G_STORAGE
-Report Hash: 0x...
-Storage URI: 0g://...
+Live app: https://clawmind-puce.vercel.app
+Judge mode: https://clawmind-puce.vercel.app/judge
+Stats: https://clawmind-puce.vercel.app/stats
+MCP: https://clawmind-mcp.vercel.app/mcp
 ```
-
-This means the analysis is not just generated temporarily. It is stored as persistent state that can be referenced later.
-
----
-
-## 3-minute Demo Script
-
-### Step 1 — Introduce the Problem
-
-Web3 and AI builders constantly need to evaluate risky ideas quickly.
-
-For example:
-
-```txt
-Should we build an autonomous DeFi agent that manages user funds?
-What are the risks?
-What architecture should we use?
-What should be stored and verified?
-```
-
-The issue is that most AI tools are stateless. They answer once, but they do not behave like a persistent decision system.
-
-ClawMind is designed as a cognitive backbone for this type of workflow.
-
----
-
-### Step 2 — Show the Input
-
-I paste this demo input:
-
-```txt
-Analyze this Web3 AI protocol idea:
-An autonomous DeFi agent manages user funds across multiple yield protocols,
-uses LLM reasoning to rebalance positions, and optimizes APY while storing
-decisions in decentralized infrastructure.
-```
-
-Then I click:
-
-```txt
-Run Analysis
-```
-
----
-
-### Step 3 — Show the Agent Pipeline
-
-The pipeline runs several specialized agents:
-
-```txt
-Memory Retrieval
-Planner Agent
-Research Agent
-Risk Agent
-Architect Agent
-Critic Agent
-Final Decision Agent
-Memory Writer
-```
-
-This is the orchestration layer.
-
-The important point is that ClawMind is not making a single LLM call. It decomposes the task into specialized reasoning nodes.
-
----
-
-### Step 4 — Show Relevant Memories
-
-The memory panel shows previous risk patterns such as:
-
-```txt
-Custody risk
-Oracle manipulation
-Unsafe autonomous execution
-Private key exposure
-Policy bypass
-LLM hallucinated actions
-```
-
-This is the foundation for long-context memory.
-
-ClawMind also persists a generated memory index through 0G Storage, so future runs can reuse previous decision context.
-
----
-
-### Step 5 — Show Final Report
-
-The final report includes:
-
-- summary
-- score
-- recommendation
-- risk map
-- opportunities
-- architecture
-- next steps
-- evidence log
-
-For this DeFi agent example, ClawMind correctly identifies major risks:
-
-```txt
-Autonomous execution risk
-Custody and permission risk
-External data reliability risk
-Memory poisoning risk
-```
-
-This is exactly the type of analysis needed before building autonomous Web3 agents.
-
----
-
-### Step 6 — Show 0G Compute
-
-In the agent pipeline, ClawMind uses the compute abstraction layer:
-
-```txt
-lib/compute/zero-g-compute.ts
-```
-
-This allows agents to run through 0G Compute / 0G Router while keeping a local fallback for demo stability.
-
-The Memory Writer step shows the active compute provider.
-
----
-
-### Step 7 — Show 0G Storage
-
-The Decision Receipt shows:
-
-```txt
-Provider: 0G_STORAGE
-Report Hash: 0x...
-Storage URI: 0g://...
-```
-
-This proves that the final report was persisted through 0G Storage.
-
-This directly maps to the Track 1 priority requirement:
-
-```txt
-state persistence and long-context memory
-```
-
----
-
-### Step 8 — Close
-
-ClawMind demonstrates how autonomous AI systems can be built as persistent agentic infrastructure, not just chat interfaces.
-
-It combines:
-
-- multi-agent orchestration
-- specialized Skills
-- 0G Compute inference
-- 0G Storage persistence
-- verifiable decision receipts
-
-ClawMind now persists both final reports and generated memory indexes through 0G Storage.
-
----
 
 ## Judge Q&A
 
-### Q: Is this just a chatbot?
+### Is this a formal audit?
 
-No. ClawMind uses a modular agent pipeline with specialized roles, orchestration, memory context, structured reports, and storage receipts.
+No. ClawMind is a due-diligence aid. It does not execute transactions, manage user funds, or replace human security review.
 
-### Q: Where is 0G Compute used?
+### Where is 0G Compute used?
 
-Agents call a shared compute abstraction layer in:
+The LLM agent steps call the shared 0G Compute abstraction in `lib/compute/zero-g-compute.ts`, routed through the 0G Router.
 
-```txt
-lib/compute/zero-g-compute.ts
-```
+### Where is 0G Storage used?
 
-This layer connects to 0G Compute / 0G Router through environment variables.
+Final reports and memory index snapshots are persisted with `0g://` URIs. The UI and `/api/judge` expose the latest report and memory receipts.
 
-### Q: Where is 0G Storage used?
+### Where is 0G Chain used?
 
-Final reports are uploaded through:
+`contracts/AnalysisRegistry.sol` records each completed analysis with the report root hash, score, recommendation, storage URI, and EIP-712 operator proof.
 
-```txt
-lib/storage/zero-g-storage.ts
-```
+### Why does the manifest show one model route?
 
-The UI displays the resulting provider, report hash, and storage URI.
+The production deployment currently uses a stable single primary 0G Compute model route. The project is multi-agent by orchestration and role separation; model routing remains configurable in `lib/compute/model-router.ts`.
 
-### Q: How does this fit Track 1?
+### Why are there historical contract addresses?
 
-ClawMind implements:
-
-- cognitive backbone
-- orchestration layer
-- agent framework
-- specialized Skills
-- data-processing pipeline
-- 0G Compute inference
-- 0G Storage persistence
-
-### Q: What is the next technical milestone?
-
-Real memory persistence.
-
-Each report should generate a memory record, store it in 0G Storage, and retrieve it during future agent runs.
-
-### Q: Why is this useful?
-
-Autonomous agents need persistent decision context, not stateless one-off answers. ClawMind gives Web3 builders a reusable, auditable decision layer.
+The current production registry is v3 at `0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1`. Earlier v1/v2 registries are preserved as hackathon history, but `/api/judge`, `/stats`, `/analysis`, and MCP use v3 only.

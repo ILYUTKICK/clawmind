@@ -1,0 +1,15 @@
+.DS_Store
+.clawmind
+.env
+.env.*
+.git
+.github
+.next
+apps/mcp-server/.next
+coverage
+node_modules
+apps/mcp-server/node_modules
+npm-debug.log*
+*.log
+*.zip
+tsconfig.tsbuildinfo
