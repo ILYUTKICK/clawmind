@@ -197,7 +197,6 @@ curl -X POST https://clawmind-puce.vercel.app/api/analyze \
 | `GET /api/judge` | Returns judge-ready proof: contract, pipeline, memory, and recent analyses. |
 | `GET /api/openclaw/manifest` | Returns the OpenClaw manifest as YAML. |
 | `GET /api/openclaw/manifest?format=json` | Returns parsed manifest plus live 0G evidence. |
-| `GET /api/debug` | Returns configuration diagnostics. |
 | `POST /api/report/retrieve` | Retrieves a report by `0g://` URI or root hash. |
 
 ## MCP Server

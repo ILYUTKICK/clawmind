@@ -15,7 +15,37 @@ import { isRegistryConfigured, getLatestAnalysisFromChain } from "@/lib/contract
 
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<NextResponse> {
+function getDebugToken(request: Request): string | null {
+  const authorization = request.headers.get("authorization");
+  if (authorization?.toLowerCase().startsWith("bearer ")) {
+    return authorization.slice("bearer ".length).trim();
+  }
+
+  return request.headers.get("x-debug-token")?.trim() || null;
+}
+
+function isProductionDebugRequestAuthorized(request: Request): boolean {
+  if (process.env.NODE_ENV !== "production") {
+    return true;
+  }
+
+  const configuredToken = process.env.DEBUG_API_TOKEN?.trim();
+  if (!configuredToken) {
+    return false;
+  }
+
+  return getDebugToken(request) === configuredToken;
+}
+
+export async function GET(request: Request): Promise<NextResponse> {
+  if (process.env.NODE_ENV === "production" && !process.env.DEBUG_API_TOKEN?.trim()) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (!isProductionDebugRequestAuthorized(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const networkConfig = getNetworkConfig();
   const storageConfig = getStorageConfig();
   const computeProvider = getComputeProviderLabel();
