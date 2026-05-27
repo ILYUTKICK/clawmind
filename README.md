@@ -15,7 +15,7 @@ ClawMind runs multi-agent Web3 due diligence and anchors the final report on 0G 
 | MCP server | https://clawmind-mcp.vercel.app/mcp |
 | OpenClaw manifest | https://clawmind-puce.vercel.app/api/openclaw/manifest?format=json |
 | 0G contract | https://chainscan.0g.ai/address/0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1 |
-| Docs | clawmind.mintlify.app |
+| Docs | https://clawmind.mintlify.app |
 
 ## Live Proof Snapshot
 
