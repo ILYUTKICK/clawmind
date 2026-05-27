@@ -1,7 +1,7 @@
 import { StatsDashboard, type StatsJudgeData } from "@/components/StatsDashboard";
 import packageJson from "@/package.json";
 
-export const revalidate = 30;
+export const revalidate = 0;
 export const dynamic = "force-dynamic";
 
 function getBaseUrl(): string {
@@ -19,7 +19,7 @@ function getBaseUrl(): string {
 async function getJudgeData(): Promise<StatsJudgeData | null> {
   try {
     const response = await fetch(`${getBaseUrl()}/api/judge`, {
-      next: { revalidate: 30 },
+      cache: "no-store",
     });
 
     if (!response.ok) {

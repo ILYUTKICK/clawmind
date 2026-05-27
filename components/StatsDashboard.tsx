@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 type Recommendation = "GO" | "NO_GO" | "INVESTIGATE_MORE";
 type AnalysisSource = "web" | "mcp";
@@ -639,38 +638,65 @@ function EmptyState() {
 }
 
 export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps) {
-  const router = useRouter();
-  const [nowMs, setNowMs] = useState(() => data ? Date.parse(data.generatedAt) : 0);
+  const [liveData, setLiveData] = useState<StatsJudgeData | null>(data);
+  const [nowMs, setNowMs] = useState(() => data ? Date.parse(data.generatedAt) : Date.now());
   const [refreshing, setRefreshing] = useState(false);
+
+  const refreshData = useCallback(async () => {
+    setRefreshing(true);
+
+    try {
+      const response = await fetch(`/api/judge?stats=${Date.now()}`, {
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const nextData = (await response.json()) as StatsJudgeData;
+      setLiveData(nextData);
+      setNowMs(Date.now());
+    } catch (error) {
+      console.warn("[Stats] Failed to refresh judge data", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     const clock = window.setInterval(() => setNowMs(Date.now()), 1_000);
-    const refresh = window.setInterval(() => router.refresh(), REFRESH_INTERVAL_MS);
+    const refresh = window.setInterval(() => {
+      void refreshData();
+    }, REFRESH_INTERVAL_MS);
 
     return () => {
       window.clearInterval(clock);
       window.clearInterval(refresh);
     };
-  }, [router]);
+  }, [refreshData]);
 
-  const rows = useMemo(() => buildFeedRows(data), [data]);
+  const rows = useMemo(() => buildFeedRows(liveData), [liveData]);
   const scoreStats = useMemo(() => getScoreStats(rows), [rows]);
 
-  if (!data) {
+  if (!liveData) {
     return <EmptyState />;
   }
 
-  const generatedAtMs = Date.parse(data.generatedAt);
+  const generatedAtMs = Date.parse(liveData.generatedAt);
   const secondsToRefresh = Math.max(
     0,
     Math.ceil((REFRESH_INTERVAL_MS - (nowMs - generatedAtMs)) / 1_000),
   );
-  const distributionTotal = Object.values(data.scoreDistribution).reduce(
+  const distributionTotal = Object.values(liveData.scoreDistribution).reduce(
     (sum, count) => sum + count,
     0,
   );
-  const signed = data.integration.onChain.operatorAuthentication.signatureVerified;
-  const critic = data.criticEffectiveness;
+  const signed = liveData.integration.onChain.operatorAuthentication.signatureVerified;
+  const critic = liveData.criticEffectiveness;
   const resolvedPct =
     critic.totalChallenges > 0
       ? Math.round((critic.resolvedChallenges / critic.totalChallenges) * 100)
@@ -679,17 +705,15 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
     critic.totalChallenges > 0
       ? Math.round((critic.unresolvedChallenges / critic.totalChallenges) * 100)
       : 0;
-  const mcpTracked = data.mcpUsage.trackedAnalyses;
+  const mcpTracked = liveData.mcpUsage.trackedAnalyses;
   const mcpPct =
     mcpTracked > 0
-      ? Math.round((data.mcpUsage.mcpInitiatedAnalyses / mcpTracked) * 100)
+      ? Math.round((liveData.mcpUsage.mcpInitiatedAnalyses / mcpTracked) * 100)
       : 0;
   const latest = rows[0] ?? null;
 
   function refreshNow() {
-    setRefreshing(true);
-    router.refresh();
-    window.setTimeout(() => setRefreshing(false), 650);
+    void refreshData();
   }
 
   return (
@@ -699,7 +723,7 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="font-mono text-xs uppercase tracking-[0.08em] text-[var(--cm-text-muted)]">
-                LIVE METRICS · {data.network.name === "mainnet" ? "0G MAINNET" : "0G TESTNET"}
+                LIVE METRICS · {liveData.network.name === "mainnet" ? "0G MAINNET" : "0G TESTNET"}
               </p>
               <h1 className="mt-3 text-4xl font-semibold tracking-normal sm:text-5xl">
                 Stats
@@ -752,12 +776,12 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             label="Total analyses"
-            value={data.analysisCount.toLocaleString()}
+            value={liveData.analysisCount.toLocaleString()}
             detail={
               <>
                 Registry count on chain ID{" "}
                 <span className="font-mono text-[var(--cm-text-secondary)]">
-                  {data.network.chainId}
+                  {liveData.network.chainId}
                 </span>
                 .
               </>
@@ -776,15 +800,15 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
           />
           <KpiCard
             label="Memory records"
-            value={data.memory.totalRecords.toLocaleString()}
+            value={liveData.memory.totalRecords.toLocaleString()}
             detail={
               <>
                 <span className="font-mono text-[var(--cm-text-secondary)]">
-                  {data.memory.seedCount}
+                  {liveData.memory.seedCount}
                 </span>{" "}
                 seed +{" "}
                 <span className="font-mono text-[var(--cm-text-secondary)]">
-                  {data.memory.runtimeGeneratedCount}
+                  {liveData.memory.runtimeGeneratedCount}
                 </span>{" "}
                 runtime records.
               </>
@@ -792,7 +816,7 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
           />
           <KpiCard
             label="MCP initiated"
-            value={data.mcpUsage.mcpInitiatedAnalyses.toLocaleString()}
+            value={liveData.mcpUsage.mcpInitiatedAnalyses.toLocaleString()}
             detail={
               mcpTracked > 0
                 ? `${mcpPct}% of ${mcpTracked} tracked analyses came through MCP.`
@@ -842,17 +866,17 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
               <div className="mt-5 space-y-5">
                 <DistributionRow
                   recommendation="GO"
-                  count={data.scoreDistribution.GO}
+                  count={liveData.scoreDistribution.GO}
                   total={distributionTotal}
                 />
                 <DistributionRow
                   recommendation="INVESTIGATE_MORE"
-                  count={data.scoreDistribution.INVESTIGATE_MORE}
+                  count={liveData.scoreDistribution.INVESTIGATE_MORE}
                   total={distributionTotal}
                 />
                 <DistributionRow
                   recommendation="NO_GO"
-                  count={data.scoreDistribution.NO_GO}
+                  count={liveData.scoreDistribution.NO_GO}
                   total={distributionTotal}
                 />
               </div>
@@ -914,14 +938,14 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
               <PanelHeader
                 eyebrow="Recent analyses"
                 title="Registry feed"
-                meta={`refreshed ${formatGeneratedAt(data.generatedAt)}`}
+                meta={`refreshed ${formatGeneratedAt(liveData.generatedAt)}`}
               />
             </div>
             {rows.length > 0 ? (
               <FeedTable
                 rows={rows}
                 nowMs={nowMs}
-                explorerUrl={data.integration.onChain.explorerUrl}
+                explorerUrl={liveData.integration.onChain.explorerUrl}
               />
             ) : (
               <div className="border-t border-[var(--cm-border)] p-5 text-sm text-[var(--cm-text-muted)]">
@@ -949,10 +973,10 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
                 />
                 <ReceiptRow
                   label="Requests"
-                  value={`${data.mcpUsage.mcpInitiatedAnalyses} of ${mcpTracked}`}
-                  tone={data.mcpUsage.mcpInitiatedAnalyses > 0 ? "accent" : undefined}
+                  value={`${liveData.mcpUsage.mcpInitiatedAnalyses} of ${mcpTracked}`}
+                  tone={liveData.mcpUsage.mcpInitiatedAnalyses > 0 ? "accent" : undefined}
                 />
-                <ReceiptRow label="Web initiated" value={data.mcpUsage.webInitiatedAnalyses} />
+                <ReceiptRow label="Web initiated" value={liveData.mcpUsage.webInitiatedAnalyses} />
                 <ReceiptRow label="Rate limit" value="60s / client" />
               </div>
               <div className="mt-4 rounded-lg border border-[var(--cm-border)] bg-[var(--cm-background)] p-3 font-mono text-xs leading-5 text-[var(--cm-text-muted)]">
@@ -965,25 +989,25 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
               <div className="mt-5 rounded-lg border border-[var(--cm-border)] bg-black/20 px-4">
                 <ReceiptRow
                   label="Status"
-                  value={data.memory.semanticRetrievalActive ? "active" : "pending"}
-                  tone={data.memory.semanticRetrievalActive ? "accent" : "warning"}
+                  value={liveData.memory.semanticRetrievalActive ? "active" : "pending"}
+                  tone={liveData.memory.semanticRetrievalActive ? "accent" : "warning"}
                 />
-                <ReceiptRow label="0G-backed records" value={data.memory.zeroGBackedCount} />
-                <ReceiptRow label="Runtime records" value={data.memory.runtimeGeneratedCount} />
-                <ReceiptRow label="Seed records" value={data.memory.seedCount} />
+                <ReceiptRow label="0G-backed records" value={liveData.memory.zeroGBackedCount} />
+                <ReceiptRow label="Runtime records" value={liveData.memory.runtimeGeneratedCount} />
+                <ReceiptRow label="Seed records" value={liveData.memory.seedCount} />
               </div>
-              {data.memory.semanticRetrievalExample ? (
+              {liveData.memory.semanticRetrievalExample ? (
                 <p className="mt-4 text-sm leading-6 text-[var(--cm-text-muted)]">
-                  {data.memory.semanticRetrievalExample}
+                  {liveData.memory.semanticRetrievalExample}
                 </p>
               ) : null}
-              {data.memory.latestMemoryIndexUri ? (
+              {liveData.memory.latestMemoryIndexUri ? (
                 <div className="mt-4 rounded-lg border border-[var(--cm-border)] bg-[var(--cm-background)] p-3">
                   <p className="font-mono text-xs uppercase text-[var(--cm-text-muted)]">
                     Latest index URI
                   </p>
                   <p className="mt-2 break-all font-mono text-xs leading-5 text-[var(--cm-text-secondary)]">
-                    {data.memory.latestMemoryIndexUri}
+                    {liveData.memory.latestMemoryIndexUri}
                   </p>
                 </div>
               ) : null}
@@ -995,14 +1019,14 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
                 <ReceiptRow
                   label="Contract"
                   value={
-                    data.integration.onChain.contractAddress ? (
+                    liveData.integration.onChain.contractAddress ? (
                       <a
-                        href={data.integration.onChain.explorerUrl ?? undefined}
+                        href={liveData.integration.onChain.explorerUrl ?? undefined}
                         target="_blank"
                         rel="noreferrer"
                         className="text-[var(--cm-accent)] hover:text-teal-200"
                       >
-                        {shortHash(data.integration.onChain.contractAddress, 8, 4)}
+                        {shortHash(liveData.integration.onChain.contractAddress, 8, 4)}
                       </a>
                     ) : (
                       "not configured"
@@ -1011,26 +1035,26 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
                 />
                 <ReceiptRow
                   label="Operator"
-                  value={shortHash(data.integration.onChain.operatorAuthentication.operatorAddress, 8, 4)}
+                  value={shortHash(liveData.integration.onChain.operatorAuthentication.operatorAddress, 8, 4)}
                 />
                 <ReceiptRow
                   label="Authorized"
                   value={
-                    data.integration.onChain.operatorAuthentication.operatorAuthorized === true
+                    liveData.integration.onChain.operatorAuthentication.operatorAuthorized === true
                       ? "true"
-                      : data.integration.onChain.operatorAuthentication.operatorAuthorized === false
+                      : liveData.integration.onChain.operatorAuthentication.operatorAuthorized === false
                         ? "false"
                         : "unknown"
                   }
                   tone={
-                    data.integration.onChain.operatorAuthentication.operatorAuthorized === true
+                    liveData.integration.onChain.operatorAuthentication.operatorAuthorized === true
                       ? "accent"
                       : "warning"
                   }
                 />
                 <ReceiptRow
                   label="Mode"
-                  value={data.integration.onChain.operatorAuthentication.mode}
+                  value={liveData.integration.onChain.operatorAuthentication.mode}
                 />
               </div>
             </div>
