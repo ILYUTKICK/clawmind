@@ -141,7 +141,7 @@ Output:
     "score": 0,
     "recommendation": "NO_GO",
     "timestamp": 1778505572,
-    "explorerUrl": "https://chainscan.0g.ai/address/0x08a9..."
+    "explorerUrl": "https://chainscan.0g.ai/address/0x24bAAC..."
   }
 ]
 ```
