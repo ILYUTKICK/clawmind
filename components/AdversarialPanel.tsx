@@ -44,7 +44,9 @@ const AGENT_CLAIMS: {
   { name: "architect", label: "Architect", token: "AR" },
   { name: "critic", label: "Critic", token: "CR" },
   { name: "final_agent", label: "Final Agent", token: "FN" },
-  { name: "memory_writer", label: "Memory Writer", token: "MW" },
+  { name: "report_storage", label: "Report Storage", token: "ST" },
+  { name: "memory_index", label: "Memory Index", token: "MI" },
+  { name: "onchain_registry", label: "On-chain Registry", token: "OC" },
 ];
 
 const SEVERITY_META: Record<

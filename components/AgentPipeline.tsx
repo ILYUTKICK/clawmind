@@ -41,7 +41,12 @@ function getPreviewLimit(stepName: AgentStep["name"]): number {
     return 520;
   }
 
-  if (stepName === "memory_writer") {
+  if (
+    stepName === "memory_writer" ||
+    stepName === "report_storage" ||
+    stepName === "memory_index" ||
+    stepName === "onchain_registry"
+  ) {
     return 420;
   }
 
@@ -174,8 +179,18 @@ export function AgentPipeline({ steps, isLoading }: AgentPipelineProps) {
             status: "pending" as const,
           },
           {
-            name: "memory_writer" as const,
-            label: "Memory Writer",
+            name: "report_storage" as const,
+            label: "Report Storage",
+            status: "pending" as const,
+          },
+          {
+            name: "memory_index" as const,
+            label: "Memory Index",
+            status: "pending" as const,
+          },
+          {
+            name: "onchain_registry" as const,
+            label: "On-chain Registry",
             status: "pending" as const,
           },
         ];

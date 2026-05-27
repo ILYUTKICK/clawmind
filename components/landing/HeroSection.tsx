@@ -42,7 +42,7 @@ export function HeroSection({
         </Link>
       </div>
       <p className="mt-5 font-mono text-xs text-[var(--cm-text-muted)]">
-        8 agents · ~30s per analysis · ~$0.03 cost · signed and recorded on 0G
+        7 agents + 3 proof steps · ~2-4m · signed and recorded on 0G
       </p>
     </section>
   );

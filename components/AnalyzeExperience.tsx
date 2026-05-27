@@ -65,8 +65,11 @@ const AGENT_ORDER: AgentName[] = [
   "architect",
   "critic",
   "final_agent",
-  "memory_writer",
+  "report_storage",
+  "memory_index",
+  "onchain_registry",
 ];
+const TOTAL_PIPELINE_STEPS = AGENT_ORDER.length;
 
 const AGENT_META: Record<AgentName, { label: string; model: string; idle: string }> = {
   memory_retrieval: {
@@ -104,10 +107,25 @@ const AGENT_META: Record<AgentName, { label: string; model: string; idle: string
     model: "0G Compute route",
     idle: "Combine agent outputs into a final score, recommendation, and report.",
   },
+  report_storage: {
+    label: "Report Storage",
+    model: "0G Storage",
+    idle: "Persist the final report and produce a verifiable 0g:// root hash.",
+  },
   memory_writer: {
     label: "Memory Writer",
     model: "all-MiniLM-L6-v2 + 0G Storage",
     idle: "Persist the completed report into runtime semantic memory.",
+  },
+  memory_index: {
+    label: "Memory Index",
+    model: "all-MiniLM-L6-v2 + 0G Storage",
+    idle: "Generate a reusable memory record and upload the latest memory index.",
+  },
+  onchain_registry: {
+    label: "On-chain Registry",
+    model: "EIP-712 + 0G Chain",
+    idle: "Sign and anchor the analysis receipt in the 0G registry.",
   },
 };
 
@@ -122,7 +140,7 @@ function shortHash(value?: string, head = 8, tail = 4): string {
 }
 
 function normalizeStepLabel(value: string): string {
-  return value.replace(/_/g, " ");
+  return value.replace(/\+/g, " + ").replace(/_/g, " ");
 }
 
 function statusLabel(status: AgentStep["status"] | "pending"): string {
@@ -323,12 +341,12 @@ function MetricsPanel({
         <span className="uppercase text-[10px] tracking-[0.06em] text-[var(--cm-text-muted)]">Elapsed</span>
         <span>{formatElapsed(elapsedMs)}</span>
         <span className="uppercase text-[10px] tracking-[0.06em] text-[var(--cm-text-muted)]">Steps completed</span>
-        <span>{completed} of 8</span>
+        <span>{completed} of {TOTAL_PIPELINE_STEPS}</span>
         <span className="uppercase text-[10px] tracking-[0.06em] text-[var(--cm-text-muted)]">Models observed</span>
         <span>{models.size > 0 ? `${models.size} active` : "pending"}</span>
         <div className="col-span-2 my-1 border-t border-dashed border-[var(--cm-border-emphasis)]" />
         <span className="uppercase text-[10px] tracking-[0.06em] text-[var(--cm-text-muted)]">Projected finish</span>
-        <span>{isLoading ? "~30-60s" : completed === 8 ? "complete" : "pending"}</span>
+        <span>{isLoading ? "~2-4m" : completed === TOTAL_PIPELINE_STEPS ? "complete" : "pending"}</span>
       </div>
     </div>
   );
@@ -435,7 +453,7 @@ function InputPhase({
           New analysis
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--cm-text-secondary)]">
-          Describe a Web3 project, protocol, or agentic system. 8 agents will analyze it in 30-60 seconds.
+          Describe a Web3 project, protocol, or agentic system. ClawMind will analyze it and anchor a signed proof on 0G.
         </p>
       </header>
 
@@ -483,7 +501,7 @@ function InputPhase({
           {isLoading ? "Running analysis..." : "Run analysis →"}
         </button>
         <p className="text-center [font-family:var(--cm-font-mono)] text-[11px] text-[var(--cm-text-muted)]">
-          8 agents · 0G Compute · est. 30-60s · ~$0.03 · signed and recorded on 0G
+          7 agents + 3 proof steps · 0G Compute · est. 2-4m · signed and recorded on 0G
         </p>
       </div>
     </section>
@@ -529,7 +547,7 @@ function LivePhase({
             <div className="h-full bg-[var(--cm-accent)] transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
           <div className="mt-2 flex justify-between gap-3 [font-family:var(--cm-font-mono)] text-[11px] text-[var(--cm-text-muted)]">
-            <span><b className="text-[var(--cm-text-secondary)]">{completed} of 8</b> · {currentStep ? normalizeStepLabel(currentStep) : "starting"}</span>
+            <span><b className="text-[var(--cm-text-secondary)]">{completed} of {TOTAL_PIPELINE_STEPS}</b> · {currentStep ? normalizeStepLabel(currentStep) : "starting"}</span>
             <span><b className="text-[var(--cm-text-secondary)]">{formatElapsed(elapsedMs)}</b> elapsed</span>
           </div>
         </div>

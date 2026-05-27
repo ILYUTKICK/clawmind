@@ -177,10 +177,22 @@ export function createMockAnalysis(task: string): AnalysisResult {
 
   steps.push(
     createCompletedStep(
-      "memory_writer",
-      "Memory Writer",
+      "report_storage",
+      "Report Storage",
       JSON.stringify(report),
       `Saved report through ${receipt.provider}. Receipt: ${receipt.reportHash}`
+    ),
+    createCompletedStep(
+      "memory_index",
+      "Memory Index",
+      JSON.stringify(report),
+      "Generated runtime memory record and updated the local semantic index."
+    ),
+    createCompletedStep(
+      "onchain_registry",
+      "On-chain Registry",
+      receipt.reportHash,
+      "On-chain anchoring skipped in mock mode."
     )
   );
 

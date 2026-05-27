@@ -4,7 +4,6 @@ import { runFinalAgent } from "@/lib/agents/final-agent";
 import { runPlannerAgent } from "@/lib/agents/planner";
 import { runResearchAgent } from "@/lib/agents/researcher";
 import { runRiskAgent } from "@/lib/agents/risk-agent";
-import { getComputeProviderLabel } from "@/lib/compute/compute-status";
 import { getModelForAgent } from "@/lib/compute/model-router";
 import { formatMemoryContext, getRelevantMemories, saveGeneratedMemoryRecord } from "@/lib/memory/memory-manager";
 import { rememberLatestMemoryIndexUri } from "@/lib/memory/persistent-memory-store";
@@ -16,6 +15,32 @@ import { AgentName, AgentStep, AnalysisResult, AnalysisSource } from "@/lib/type
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function formatDuration(ms: number): string {
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+async function timeOperation<T>(
+  label: string,
+  operation: () => Promise<T>,
+): Promise<{ result: T; durationMs: number }> {
+  const startedAt = Date.now();
+
+  try {
+    const result = await operation();
+    const durationMs = Date.now() - startedAt;
+    console.log(`[Orchestrator] ${label} completed in ${formatDuration(durationMs)}`);
+    return { result, durationMs };
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    console.warn(
+      `[Orchestrator] ${label} failed after ${formatDuration(durationMs)}: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    );
+    throw error;
+  }
 }
 
 function createRunningStep(name: AgentName, label: string, input: string): AgentStep {
@@ -63,29 +88,29 @@ export async function runAnalysis(
   options: RunAnalysisOptions = {},
 ): Promise<AnalysisResult> {
   const steps: AgentStep[] = [];
-  const computeProvider = getComputeProviderLabel();
   const source = options.source ?? "web";
 
   // Helper to push a step and notify progress
-  function pushStep(step: AgentStep, currentStep: string) {
+  async function pushStep(step: AgentStep, currentStep: string) {
     steps.push(step);
-    onProgress?.(currentStep, [...steps]);
+    await onProgress?.(currentStep, [...steps]);
   }
 
   // Helper to update an existing step in-place (for parallel completion)
-  function updateStep(index: number, updatedStep: AgentStep, currentStep: string) {
+  async function updateStep(index: number, updatedStep: AgentStep, currentStep: string) {
     steps[index] = updatedStep;
-    onProgress?.(currentStep, [...steps]);
+    await onProgress?.(currentStep, [...steps]);
   }
 
   // ============================================================
   // Step 1: Memory Retrieval
   // ============================================================
   const memoryStart = nowIso();
-  const relevantMemories = await getRelevantMemories(task);
+  const { result: relevantMemories, durationMs: memoryRetrievalDurationMs } =
+    await timeOperation("Memory retrieval", () => getRelevantMemories(task));
   const memoryContext = formatMemoryContext(relevantMemories);
 
-  pushStep({
+  await pushStep({
     name: "memory_retrieval",
     label: "Memory Retrieval",
     status: "completed",
@@ -94,6 +119,7 @@ export async function runAnalysis(
     modelFamily: "Local embeddings",
     output: [
       `Found ${relevantMemories.length} relevant memory record(s).`,
+      `Completed in ${formatDuration(memoryRetrievalDurationMs)}.`,
       "Memory source: local cache + 0G Storage memory index when available.",
       memoryContext,
     ].join("\n"),
@@ -106,204 +132,263 @@ export async function runAnalysis(
   // ============================================================
   const plannerStep = createRunningStep("planner", "Planner Agent", task);
   const plannerIdx = steps.length;
-  pushStep(plannerStep, "planner");
+  await pushStep(plannerStep, "planner");
 
-  const plan = await runPlannerAgent(task, memoryContext);
-  updateStep(plannerIdx, completeStep(plannerStep, plan), "researcher");
+  const { result: plan } = await timeOperation("Planner Agent", () =>
+    runPlannerAgent(task, memoryContext),
+  );
+  await updateStep(plannerIdx, completeStep(plannerStep, plan), "researcher");
 
   // ============================================================
   // Step 3: Research Agent
   // ============================================================
   const researcherStep = createRunningStep("researcher", "Research Agent", task);
   const researcherIdx = steps.length;
-  pushStep(researcherStep, "researcher");
+  await pushStep(researcherStep, "researcher");
 
-  const researchOutput = await runResearchAgent(task, plan);
-  updateStep(researcherIdx, completeStep(researcherStep, researchOutput), "risk_agent+architect");
+  const { result: researchOutput } = await timeOperation("Research Agent", () =>
+    runResearchAgent(task, plan),
+  );
+  await updateStep(researcherIdx, completeStep(researcherStep, researchOutput), "risk_agent+architect");
 
   // ============================================================
   // Steps 4+5: Risk Agent + Architect Agent IN PARALLEL
   // ============================================================
   const riskStep = createRunningStep("risk_agent", "Risk Agent", task);
   const riskIdx = steps.length;
-  pushStep(riskStep, "risk_agent+architect");
+  await pushStep(riskStep, "risk_agent+architect");
 
   const architectStep = createRunningStep("architect", "Architect Agent", task);
   const architectIdx = steps.length;
-  pushStep(architectStep, "risk_agent+architect");
+  await pushStep(architectStep, "risk_agent+architect");
 
   const [riskResult, architectResult] = await Promise.all([
-    runRiskAgent(task, researchOutput, memoryContext)
+    timeOperation("Risk Agent", () => runRiskAgent(task, researchOutput, memoryContext))
       .then((output) => ({ output, error: null as string | null }))
       .catch((err) => ({ output: null, error: err instanceof Error ? err.message : "Risk agent failed" })),
 
-    runArchitectAgent(task, researchOutput, "")
+    timeOperation("Architect Agent", () => runArchitectAgent(task, researchOutput, ""))
       .then((output) => ({ output, error: null as string | null }))
       .catch((err) => ({ output: null, error: err instanceof Error ? err.message : "Architect agent failed" })),
   ]);
 
   if (riskResult.output) {
-    updateStep(riskIdx, completeStep(riskStep, riskResult.output), "critic");
+    await updateStep(riskIdx, completeStep(riskStep, riskResult.output.result), "critic");
   } else {
-    updateStep(riskIdx, failStep(riskStep, riskResult.error ?? "Unknown error"), "critic");
+    await updateStep(riskIdx, failStep(riskStep, riskResult.error ?? "Unknown error"), "critic");
   }
 
-  const riskOutput = riskResult.output ?? "Risk analysis unavailable — using fallback risk assessment.";
+  const riskOutput = riskResult.output?.result ?? "Risk analysis unavailable — using fallback risk assessment.";
 
   if (architectResult.output) {
-    updateStep(architectIdx, completeStep(architectStep, architectResult.output), "critic");
+    await updateStep(architectIdx, completeStep(architectStep, architectResult.output.result), "critic");
   } else {
-    updateStep(architectIdx, failStep(architectStep, architectResult.error ?? "Unknown error"), "critic");
+    await updateStep(architectIdx, failStep(architectStep, architectResult.error ?? "Unknown error"), "critic");
   }
 
-  const architectureOutput = architectResult.output ?? "Architecture proposal unavailable — using fallback architecture.";
+  const architectureOutput = architectResult.output?.result ?? "Architecture proposal unavailable — using fallback architecture.";
 
   // ============================================================
   // Step 6: Critic Agent
   // ============================================================
   const criticStep = createRunningStep("critic", "Critic Agent", task);
   const criticIdx = steps.length;
-  pushStep(criticStep, "critic");
+  await pushStep(criticStep, "critic");
 
-  const critiqueOutput = await runCriticAgent(task, plan, researchOutput, riskOutput, architectureOutput);
-  updateStep(criticIdx, completeStep(criticStep, JSON.stringify(critiqueOutput)), "final_agent");
+  const { result: critiqueOutput } = await timeOperation("Critic Agent", () =>
+    runCriticAgent(task, plan, researchOutput, riskOutput, architectureOutput),
+  );
+  await updateStep(criticIdx, completeStep(criticStep, JSON.stringify(critiqueOutput)), "final_agent");
 
   // ============================================================
   // Step 7: Final Decision Agent
   // ============================================================
   const finalStep = createRunningStep("final_agent", "Final Decision Agent", task);
   const finalIdx = steps.length;
-  pushStep(finalStep, "final_agent");
+  await pushStep(finalStep, "final_agent");
 
-  const finalResult = await runFinalAgent({
-    task,
-    memories: relevantMemories,
-    plan,
-    researchOutput,
-    riskOutput,
-    architectureOutput,
-    critiqueOutput,
-  });
+  const { result: finalResult } = await timeOperation("Final Decision Agent", () =>
+    runFinalAgent({
+      task,
+      memories: relevantMemories,
+      plan,
+      researchOutput,
+      riskOutput,
+      architectureOutput,
+      critiqueOutput,
+    }),
+  );
 
-  updateStep(finalIdx, completeStep(finalStep, finalResult.rawOutput), "memory_writer");
+  await updateStep(finalIdx, completeStep(finalStep, finalResult.rawOutput), "report_storage");
 
   // ============================================================
   // Step 8: Persist report to 0G Storage
   // ============================================================
-  const receipt = await saveAnalysisReceipt({
-    task,
-    report: finalResult.report,
-  });
+  const reportStorageStep: AgentStep = {
+    ...createRunningStep(
+      "report_storage",
+      "Report Storage",
+      JSON.stringify(finalResult.report),
+    ),
+    model: "0G Storage",
+    modelFamily: "0G Storage",
+  };
+  const reportStorageIdx = steps.length;
+  await pushStep(reportStorageStep, "report_storage");
 
-  // Step 9: Generate and persist memory record + memory index
-  const generatedMemoryResult = await saveGeneratedMemoryRecord({
-    task,
-    report: finalResult.report,
-    storageUri: receipt.storageUri,
-  });
+  const { result: receipt, durationMs: reportStorageDurationMs } =
+    await timeOperation("Report storage", () =>
+      saveAnalysisReceipt({
+        task,
+        report: finalResult.report,
+      }),
+    );
 
-  const memoryIndexReceipt = await saveMemoryIndexToZeroGStorage({
-    memories: generatedMemoryResult.memories,
-  });
+  await updateStep(
+    reportStorageIdx,
+    completeStep(
+      reportStorageStep,
+      [
+        `Saved report through ${receipt.provider} in ${formatDuration(reportStorageDurationMs)}.`,
+        `Report hash: ${receipt.reportHash}.`,
+        `Report URI: ${receipt.storageUri ?? "not available"}.`,
+      ].join(" "),
+    ),
+    "memory_index+onchain_registry",
+  );
 
-  await rememberLatestMemoryIndexUri(memoryIndexReceipt.storageUri);
+  const hasVerifiableReportStorage =
+    receipt.provider === "0G_STORAGE" && receipt.storageUri?.startsWith("0g://");
 
-  // Step 10: On-chain registration
+  // ============================================================
+  // Steps 9+10: prepare memory and register on-chain concurrently
+  // ============================================================
+  const memoryIndexStep: AgentStep = {
+    ...createRunningStep("memory_index", "Memory Index", task),
+    model: "all-MiniLM-L6-v2 + 0G Storage",
+    modelFamily: "Local embeddings + 0G Storage",
+  };
+  const memoryIndexIdx = steps.length;
+  await pushStep(memoryIndexStep, "memory_index+onchain_registry");
+
+  const onChainStep: AgentStep = {
+    ...createRunningStep(
+      "onchain_registry",
+      "On-chain Registry",
+      receipt.reportHash,
+    ),
+    model: "EIP-712 operator signature",
+    modelFamily: "0G Chain",
+  };
+  const onChainIdx = steps.length;
+  await pushStep(onChainStep, "memory_index+onchain_registry");
+
   console.log("[Orchestrator] Step 10: On-chain registration attempt...");
   console.log(`[Orchestrator]   Network: ${process.env.ZERO_G_NETWORK ?? "testnet (default)"}`);
   console.log(`[Orchestrator]   Contract: ${process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS ?? "NOT SET"}`);
   console.log(`[Orchestrator]   Private key: ${process.env.ZERO_G_STORAGE_PRIVATE_KEY ? "SET" : "NOT SET"}`);
   console.log(`[Orchestrator]   Storage enabled: ${process.env.ZERO_G_STORAGE_ENABLED ?? "not set"}`);
 
-  const hasVerifiableReportStorage =
-    receipt.provider === "0G_STORAGE" && receipt.storageUri?.startsWith("0g://");
-
-  const onChainResult = hasVerifiableReportStorage
-    ? await recordAnalysisOnChain({
-        task,
-        rootHash: receipt.reportHash,
-        storageUri: receipt.storageUri ?? "",
-        score: finalResult.report.score,
-        recommendation: finalResult.report.recommendation,
-      })
-    : null;
-
-  if (onChainResult) {
-    console.log(`[Orchestrator]   ✓ On-chain tx SUCCESS: ${onChainResult.txHash} (block ${onChainResult.blockNumber})`);
-  } else if (!hasVerifiableReportStorage) {
-    console.warn(
-      `[Orchestrator]   ✗ On-chain registration SKIPPED — report storage provider is ${receipt.provider}, uri=${receipt.storageUri ?? "not available"}`
-    );
-    console.warn("[Orchestrator]   Only 0g:// report receipts are anchored on-chain.");
-  } else {
-    console.warn("[Orchestrator]   ✗ On-chain registration SKIPPED — check .env configuration");
-    console.warn("[Orchestrator]   Required: ZERO_G_NETWORK=mainnet, ZERO_G_STORAGE_PRIVATE_KEY=<real key>, ZERO_G_ANALYSIS_REGISTRY_ADDRESS=<contract>");
-  }
-
-  const onChainReceipt = buildOnChainReceipt(
-    onChainResult,
-    process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS
+  const memoryPreparationPromise = timeOperation("Memory record preparation", () =>
+    saveGeneratedMemoryRecord({
+      task,
+      report: finalResult.report,
+      storageUri: receipt.storageUri,
+    }),
   );
 
-  // Build memory writer step output
-  const memoryWriterLines = [
-    `Saved analysis through ${receipt.provider}.`,
-    `Compute provider: ${computeProvider}.`,
-    `Report hash: ${receipt.reportHash}.`,
-    `Report URI: ${receipt.storageUri ?? "not available"}.`,
-    `Generated persistent memory: ${generatedMemoryResult.memory.id}.`,
-    `Memory index provider: ${memoryIndexReceipt.provider}.`,
-    `Memory index hash: ${memoryIndexReceipt.reportHash}.`,
-    `Memory index URI: ${memoryIndexReceipt.storageUri ?? "not available"}.`,
-    `On-chain registry: ${onChainReceipt.provider}.`,
-  ];
+  const onChainReceiptPromise = (async () => {
+    const { result: onChainResult, durationMs: onChainDurationMs } =
+      await timeOperation("On-chain registry", async () => {
+        if (!hasVerifiableReportStorage) {
+          console.warn(
+            `[Orchestrator]   ✗ On-chain registration SKIPPED — report storage provider is ${receipt.provider}, uri=${receipt.storageUri ?? "not available"}`
+          );
+          console.warn("[Orchestrator]   Only 0g:// report receipts are anchored on-chain.");
+          return null;
+        }
 
-  if (onChainReceipt.provider === "0G_CHAIN") {
-    memoryWriterLines.push(
-      `On-chain analysis ID: ${onChainReceipt.analysisId}.`,
-      `On-chain tx: ${onChainReceipt.explorerTxUrl || onChainReceipt.txHash}.`,
-      `Contract: ${onChainReceipt.contractAddress}.`,
-      `Registry mode: ${onChainReceipt.registryMode ?? "UNKNOWN"}.`
+        return recordAnalysisOnChain({
+          task,
+          rootHash: receipt.reportHash,
+          storageUri: receipt.storageUri ?? "",
+          score: finalResult.report.score,
+          recommendation: finalResult.report.recommendation,
+        });
+      });
+
+    if (onChainResult) {
+      console.log(`[Orchestrator]   ✓ On-chain tx SUCCESS: ${onChainResult.txHash} (block ${onChainResult.blockNumber})`);
+    } else if (hasVerifiableReportStorage) {
+      console.warn("[Orchestrator]   ✗ On-chain registration SKIPPED — check .env configuration");
+      console.warn("[Orchestrator]   Required: ZERO_G_NETWORK=mainnet, ZERO_G_STORAGE_PRIVATE_KEY=<real key>, ZERO_G_ANALYSIS_REGISTRY_ADDRESS=<contract>");
+    }
+
+    const onChainReceipt = buildOnChainReceipt(
+      onChainResult,
+      process.env.ZERO_G_ANALYSIS_REGISTRY_ADDRESS,
     );
+    const onChainLines = [
+      `On-chain registry finished in ${formatDuration(onChainDurationMs)}.`,
+      `Provider: ${onChainReceipt.provider}.`,
+    ];
 
-    if (onChainReceipt.signatureVerified && onChainReceipt.signedBy) {
-      memoryWriterLines.push(
-        `Signed by authorized operator: ${onChainReceipt.signedBy}.`,
-        `Task hash: ${onChainReceipt.taskHash}.`
+    if (onChainReceipt.provider === "0G_CHAIN") {
+      onChainLines.push(
+        `Analysis ID: ${onChainReceipt.analysisId}.`,
+        `Tx: ${onChainReceipt.explorerTxUrl || onChainReceipt.txHash}.`,
+        `Contract: ${onChainReceipt.contractAddress}.`,
+        `Registry mode: ${onChainReceipt.registryMode ?? "UNKNOWN"}.`,
+      );
+
+      if (onChainReceipt.signatureVerified && onChainReceipt.signedBy) {
+        onChainLines.push(
+          `Signed by authorized operator: ${onChainReceipt.signedBy}.`,
+          `Task hash: ${onChainReceipt.taskHash}.`,
+        );
+      }
+    } else if (!hasVerifiableReportStorage) {
+      onChainLines.push(
+        "Skipped because the report was not persisted to a verifiable 0g:// storage URI.",
       );
     }
-  } else if (!hasVerifiableReportStorage) {
-    memoryWriterLines.push(
-      "On-chain anchoring skipped because the report was not persisted to a verifiable 0g:// storage URI."
+
+    await updateStep(
+      onChainIdx,
+      completeStep(onChainStep, onChainLines.join(" ")),
+      "memory_index",
     );
-  }
 
-  memoryWriterLines.push(
-    "If the memory index URI starts with 0g://, later runs can load it through ZERO_G_MEMORY_INDEX_URI or the local latest-memory-index-uri.txt pointer."
-  );
+    return onChainReceipt;
+  })();
 
-  pushStep(
-    {
-      name: "memory_writer",
-      label: "Memory Writer",
-      status: "completed",
-      input: JSON.stringify(
-        {
-          report: finalResult.report,
-          memory: generatedMemoryResult.memory,
-          memoryIndexReceipt,
-          onChainReceipt,
-        },
-        null,
-        2,
-      ),
-      output: memoryWriterLines.join(" "),
-      model: "all-MiniLM-L6-v2",
-      modelFamily: "Local embeddings + 0G Storage",
-      startedAt: nowIso(),
-      finishedAt: nowIso(),
-    },
-    "completed"
+  const [
+    { result: generatedMemoryResult, durationMs: memoryPreparationDurationMs },
+    onChainReceipt,
+  ] = await Promise.all([memoryPreparationPromise, onChainReceiptPromise]);
+
+  const { result: memoryIndexReceipt, durationMs: memoryIndexDurationMs } =
+    await timeOperation("Memory index upload", () =>
+      saveMemoryIndexToZeroGStorage({
+        memories: generatedMemoryResult.memories,
+      }),
+    );
+
+  await rememberLatestMemoryIndexUri(memoryIndexReceipt.storageUri);
+
+  await updateStep(
+    memoryIndexIdx,
+    completeStep(
+      memoryIndexStep,
+      [
+        `Generated persistent memory ${generatedMemoryResult.memory.id} in ${formatDuration(memoryPreparationDurationMs)}.`,
+        `Memory index saved through ${memoryIndexReceipt.provider} in ${formatDuration(memoryIndexDurationMs)}.`,
+        `Memory index hash: ${memoryIndexReceipt.reportHash}.`,
+        `Memory index URI: ${memoryIndexReceipt.storageUri ?? "not available"}.`,
+        "If the memory index URI starts with 0g://, later runs can load it through ZERO_G_MEMORY_INDEX_URI or the local latest-memory-index-uri.txt pointer.",
+      ].join(" "),
+    ),
+    "completed",
   );
 
   const analysisResult: AnalysisResult = {

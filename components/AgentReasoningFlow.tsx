@@ -19,7 +19,9 @@ const DATA_FLOWS: { from: AgentName; to: AgentName; label: string; color: string
   { from: "risk_agent", to: "critic", label: "risks", color: "text-amber-300" },
   { from: "critic", to: "final_agent", label: "critique", color: "text-pink-300" },
   { from: "planner", to: "critic", label: "plan", color: "text-purple-300" },
-  { from: "final_agent", to: "memory_writer", label: "decision report", color: "text-cyan-300" },
+  { from: "final_agent", to: "report_storage", label: "decision report", color: "text-cyan-300" },
+  { from: "report_storage", to: "memory_index", label: "report uri", color: "text-emerald-300" },
+  { from: "report_storage", to: "onchain_registry", label: "root hash", color: "text-emerald-300" },
 ];
 
 // Agent icons/emojis for visual flair
@@ -31,7 +33,10 @@ const AGENT_ICONS: Record<string, string> = {
   architect: "🏗️",
   critic: "🔎",
   final_agent: "⚖️",
+  report_storage: "▣",
   memory_writer: "💾",
+  memory_index: "◇",
+  onchain_registry: "⌁",
 };
 
 // Skill labels for each agent
@@ -43,7 +48,10 @@ const AGENT_SKILLS: Record<string, string> = {
   architect: "architecture-design",
   critic: "adversarial-review",
   final_agent: "decision-synthesis",
+  report_storage: "0g-report-storage",
   memory_writer: "persistent-memory-writing",
+  memory_index: "semantic-memory-index",
+  onchain_registry: "eip712-registry-write",
 };
 
 // Color mapping for data flow arrows (SVG stroke colors)
@@ -106,7 +114,9 @@ export function AgentReasoningFlow({ steps, isLoading }: AgentReasoningFlowProps
     "architect",
     "critic",
     "final_agent",
-    "memory_writer",
+    "report_storage",
+    "memory_index",
+    "onchain_registry",
   ];
 
   // Count completed vs total

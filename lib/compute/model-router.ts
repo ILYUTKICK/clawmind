@@ -72,10 +72,28 @@ const AGENT_MODELS: Record<string, ModelConfig> = {
     timeoutMs: 30_000,
     temperature: 0.1,
   },
+  report_storage: {
+    model: MODELS.deepseek,
+    maxTokens: 300,
+    timeoutMs: 10_000,
+    temperature: 0.1,
+  },
   memory_writer: {
     model: MODELS.deepseek,
     maxTokens: 600,
     timeoutMs: 15_000,
+    temperature: 0.1,
+  },
+  memory_index: {
+    model: MODELS.deepseek,
+    maxTokens: 300,
+    timeoutMs: 10_000,
+    temperature: 0.1,
+  },
+  onchain_registry: {
+    model: MODELS.deepseek,
+    maxTokens: 300,
+    timeoutMs: 10_000,
     temperature: 0.1,
   },
 };

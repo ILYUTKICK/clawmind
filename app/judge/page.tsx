@@ -639,7 +639,7 @@ export default function JudgePage() {
               {
                 req: "0G Compute for inference",
                 met: ig.compute.status === "active",
-                detail: "All 8 pipeline steps use 0G Compute-compatible inference where model inference is required.",
+                detail: "The 7 reasoning agents use 0G Compute-compatible inference where model inference is required.",
               },
               {
                 req: "0G Storage for state persistence",
@@ -671,7 +671,7 @@ export default function JudgePage() {
               {
                 req: "Multi-agent reasoning pipeline",
                 met: true,
-                detail: "8-step pipeline: Memory -> Planner -> Researcher -> Risk -> Architect -> Critic -> Final -> Memory Writer.",
+                detail: "Pipeline: Memory -> Planner -> Researcher -> Risk -> Architect -> Critic -> Final -> Report Storage -> Memory Index -> On-chain Registry.",
               },
             ].map((item) => (
               <div

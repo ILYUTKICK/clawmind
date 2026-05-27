@@ -9,7 +9,10 @@ export type AgentName =
   | "architect"
   | "critic"
   | "final_agent"
-  | "memory_writer";
+  | "report_storage"
+  | "memory_writer"
+  | "memory_index"
+  | "onchain_registry";
 
 export type AgentStep = {
   name: AgentName;
