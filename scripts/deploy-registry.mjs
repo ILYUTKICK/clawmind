@@ -45,6 +45,7 @@ console.log("=== ClawMind signed AnalysisRegistry deployment ===");
 console.log(`Network: ${network ?? "unknown"}`);
 console.log(`RPC: ${rpcUrl}`);
 console.log("Contract: contracts/AnalysisRegistry.sol:AnalysisRegistry");
+console.log("Broadcast: enabled");
 console.log("");
 
 const deploy = spawnSync(
@@ -52,6 +53,7 @@ const deploy = spawnSync(
   [
     "create",
     "AnalysisRegistry",
+    "--broadcast",
     "--rpc-url",
     rpcUrl,
     "--private-key",

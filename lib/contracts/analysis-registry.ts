@@ -4,25 +4,35 @@
 
 import { getNetworkConfig, getExplorerTxUrl } from "@/lib/storage/zero-g-config";
 import type { OnChainReceipt } from "@/lib/types";
-import type { Contract, ContractTransactionReceipt, TypedDataField } from "ethers";
+import type { Contract, ContractTransactionReceipt, Provider, TypedDataField } from "ethers";
 
 // ---------------------------------------------------------------------------
 // ABI — only the functions and events we need
 // ---------------------------------------------------------------------------
 
 export const ANALYSIS_REGISTRY_ABI = [
+  "function ANALYSIS_TYPEHASH() external view returns (bytes32)",
   "function recordAnalysis(bytes32 taskHash, bytes32 rootHash, string calldata storageUri, uint8 score, string calldata recommendation, uint256 timestamp, bytes calldata signature) external returns (uint256)",
   "function recordAnalysis(bytes32 rootHash, string calldata storageUri, uint8 score, string calldata recommendation) external returns (uint256)",
   "function getAnalysis(uint256 analysisId) external view returns (address submitter, bytes32 rootHash, string memory storageUri, uint8 score, string memory recommendation, uint256 timestamp)",
-  "function getAnalysisAuth(uint256 analysisId) external view returns (bytes32 taskHash, bytes memory signature, bool submitterAuthorized)",
+  "function getAnalysisAuth(uint256 analysisId) external view returns (bytes32 taskHash, bool submitterAuthorized)",
   "function isRootHashRegistered(bytes32 rootHash) external view returns (bool)",
   "function getLatestAnalysis() external view returns (address submitter, bytes32 rootHash, string memory storageUri, uint8 score, string memory recommendation, uint256 timestamp)",
-  "function getLatestAnalysisAuth() external view returns (bytes32 taskHash, bytes memory signature, bool submitterAuthorized)",
+  "function getLatestAnalysisAuth() external view returns (bytes32 taskHash, bool submitterAuthorized)",
   "function domainSeparator() external view returns (bytes32)",
   "function authorizedOperators(address operator) external view returns (bool)",
   "function analysisCount() external view returns (uint256)",
+  "event AnalysisRecorded(uint256 indexed analysisId, address indexed submitter, bytes32 indexed taskHash, bytes32 rootHash, uint8 score, string recommendation, string storageUri, uint256 timestamp, bytes signature)",
   "event AnalysisRecorded(uint256 indexed analysisId, address indexed submitter, bytes32 indexed taskHash, bytes32 rootHash, uint8 score, string recommendation, string storageUri, uint256 timestamp)",
   "event AnalysisRecorded(uint256 indexed analysisId, address indexed submitter, bytes32 rootHash, uint8 score, string recommendation, string storageUri, uint256 timestamp)",
+] as const;
+
+const ANALYSIS_REGISTRY_V3_AUTH_ABI = [
+  "function getLatestAnalysisAuth() external view returns (bytes32 taskHash, bytes memory signature, bool submitterAuthorized)",
+] as const;
+
+const ANALYSIS_REGISTRY_V4_AUTH_ABI = [
+  "function getLatestAnalysisAuth() external view returns (bytes32 taskHash, bool submitterAuthorized)",
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -37,14 +47,32 @@ const PLACEHOLDER_PRIVATE_KEYS = new Set([
   "your_mainnet_wallet_private_key",
 ]);
 
-const EIP712_DOMAIN_NAME = "ClawMindAnalysisRegistry";
-const EIP712_DOMAIN_VERSION = "3";
+type RegistryEip712Version = "3" | "4";
 
-const ANALYSIS_EIP712_TYPES: Record<string, TypedDataField[]> = {
+const EIP712_DOMAIN_NAME = "ClawMindAnalysisRegistry";
+const EIP712_DOMAIN_VERSION_V3 = "3";
+const EIP712_DOMAIN_VERSION_V4 = "4";
+const ANALYSIS_EIP712_STRUCT_V3 =
+  "Analysis(bytes32 taskHash,bytes32 rootHash,uint8 score,uint256 timestamp)";
+const ANALYSIS_EIP712_STRUCT_V4 =
+  "Analysis(bytes32 taskHash,bytes32 rootHash,uint8 score,string storageUri,string recommendation,uint256 timestamp)";
+
+const ANALYSIS_EIP712_TYPES_V3: Record<string, TypedDataField[]> = {
   Analysis: [
     { name: "taskHash", type: "bytes32" },
     { name: "rootHash", type: "bytes32" },
     { name: "score", type: "uint8" },
+    { name: "timestamp", type: "uint256" },
+  ],
+};
+
+const ANALYSIS_EIP712_TYPES_V4: Record<string, TypedDataField[]> = {
+  Analysis: [
+    { name: "taskHash", type: "bytes32" },
+    { name: "rootHash", type: "bytes32" },
+    { name: "score", type: "uint8" },
+    { name: "storageUri", type: "string" },
+    { name: "recommendation", type: "string" },
     { name: "timestamp", type: "uint256" },
   ],
 };
@@ -72,6 +100,13 @@ function getRegistryConfig() {
   };
 }
 
+function getRegistryDeployBlock(): number {
+  const rawBlock = process.env.ZERO_G_ANALYSIS_REGISTRY_DEPLOY_BLOCK;
+  const parsedBlock = rawBlock ? Number(rawBlock) : 0;
+
+  return Number.isInteger(parsedBlock) && parsedBlock >= 0 ? parsedBlock : 0;
+}
+
 /**
  * Returns `true` when both the contract address and a valid private key are
  * configured, meaning on-chain write operations can proceed.
@@ -82,6 +117,7 @@ export function isRegistryConfigured(): boolean {
 
 export type RegistryAuthStatus = {
   contractSupportsOperatorAuth: boolean;
+  registryVersion: RegistryEip712Version | null;
   domainSeparator: string | null;
   operatorAddress: string | null;
   operatorAuthorized: boolean | null;
@@ -94,6 +130,7 @@ export async function getRegistryAuthStatus(): Promise<RegistryAuthStatus> {
 
   const fallback: RegistryAuthStatus = {
     contractSupportsOperatorAuth: false,
+    registryVersion: null,
     domainSeparator: null,
     operatorAddress: null,
     operatorAuthorized: null,
@@ -113,10 +150,12 @@ export async function getRegistryAuthStatus(): Promise<RegistryAuthStatus> {
       provider
     );
     const domainSeparator = await contract.domainSeparator();
+    const registryVersion = await getRegistryEip712Version(ethers, contract);
 
     if (!config.privateKey || PLACEHOLDER_PRIVATE_KEYS.has(config.privateKey.trim())) {
       return {
         contractSupportsOperatorAuth: true,
+        registryVersion,
         domainSeparator,
         operatorAddress: null,
         operatorAuthorized: null,
@@ -129,6 +168,7 @@ export async function getRegistryAuthStatus(): Promise<RegistryAuthStatus> {
 
     return {
       contractSupportsOperatorAuth: true,
+      registryVersion,
       domainSeparator,
       operatorAddress,
       operatorAuthorized,
@@ -180,6 +220,75 @@ function getTaskHash(ethers: typeof import("ethers").ethers, task: string): stri
   return ethers.keccak256(ethers.toUtf8Bytes(task.trim()));
 }
 
+function getDomainVersion(registryVersion: RegistryEip712Version): string {
+  return registryVersion === "4" ? EIP712_DOMAIN_VERSION_V4 : EIP712_DOMAIN_VERSION_V3;
+}
+
+function getAnalysisEip712Types(
+  registryVersion: RegistryEip712Version
+): Record<string, TypedDataField[]> {
+  return registryVersion === "4" ? ANALYSIS_EIP712_TYPES_V4 : ANALYSIS_EIP712_TYPES_V3;
+}
+
+type AnalysisTypedDataInput = {
+  taskHash: string;
+  rootHash: string;
+  score: number;
+  storageUri: string;
+  recommendation: string;
+  timestamp: number;
+};
+
+function getAnalysisTypedDataValue(
+  registryVersion: RegistryEip712Version,
+  input: AnalysisTypedDataInput
+): Record<string, string | number> {
+  if (registryVersion === "4") {
+    return {
+      taskHash: input.taskHash,
+      rootHash: input.rootHash,
+      score: input.score,
+      storageUri: input.storageUri,
+      recommendation: input.recommendation,
+      timestamp: input.timestamp,
+    };
+  }
+
+  return {
+    taskHash: input.taskHash,
+    rootHash: input.rootHash,
+    score: input.score,
+    timestamp: input.timestamp,
+  };
+}
+
+async function getRegistryEip712Version(
+  ethers: typeof import("ethers").ethers,
+  contract: Contract
+): Promise<RegistryEip712Version | null> {
+  try {
+    const typehash = String(await contract.ANALYSIS_TYPEHASH()).toLowerCase();
+    const v3Typehash = ethers
+      .keccak256(ethers.toUtf8Bytes(ANALYSIS_EIP712_STRUCT_V3))
+      .toLowerCase();
+    const v4Typehash = ethers
+      .keccak256(ethers.toUtf8Bytes(ANALYSIS_EIP712_STRUCT_V4))
+      .toLowerCase();
+
+    if (typehash === v4Typehash) {
+      return "4";
+    }
+
+    if (typehash === v3Typehash) {
+      return "3";
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function registrySupportsOperatorAuth(
   contract: Contract,
   signerAddress: string
@@ -217,6 +326,71 @@ async function parseAnalysisId(
   }
 
   return 0;
+}
+
+async function getAnalysisEventSignature(
+  ethers: typeof import("ethers").ethers,
+  provider: Provider,
+  contract: Contract,
+  contractAddress: string,
+  analysisId: number
+): Promise<string | undefined> {
+  try {
+    const topic0 = ethers.id(
+      "AnalysisRecorded(uint256,address,bytes32,bytes32,uint8,string,string,uint256,bytes)"
+    );
+    const topic1 = ethers.zeroPadValue(ethers.toBeHex(analysisId), 32);
+    const logs = await provider.getLogs({
+      address: contractAddress,
+      topics: [topic0, topic1],
+      fromBlock: getRegistryDeployBlock(),
+      toBlock: "latest",
+    });
+
+    for (let i = logs.length - 1; i >= 0; i--) {
+      const parsedLog = contract.interface.parseLog({
+        topics: logs[i].topics as string[],
+        data: logs[i].data,
+      });
+
+      const signature = parsedLog?.args?.signature;
+      if (typeof signature === "string" && signature.length > 2) {
+        return signature;
+      }
+    }
+
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function verifyAnalysisSignature(
+  ethers: typeof import("ethers").ethers,
+  registryVersion: RegistryEip712Version,
+  chainId: number,
+  contractAddress: string,
+  submitter: string,
+  signature: string,
+  input: AnalysisTypedDataInput
+): boolean {
+  try {
+    const recovered = ethers.verifyTypedData(
+      {
+        name: EIP712_DOMAIN_NAME,
+        version: getDomainVersion(registryVersion),
+        chainId,
+        verifyingContract: contractAddress,
+      },
+      getAnalysisEip712Types(registryVersion),
+      getAnalysisTypedDataValue(registryVersion, input),
+      signature
+    );
+
+    return recovered.toLowerCase() === submitter.toLowerCase();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -317,20 +491,31 @@ export async function recordAnalysisOnChain(
       return null;
     }
 
+    const registryVersion = await getRegistryEip712Version(ethers, contract);
+
+    if (!registryVersion) {
+      console.warn(
+        "[0G Chain] Contract exposes operator auth but its Analysis EIP-712 typehash is unsupported."
+      );
+      return null;
+    }
+
     const signature = await signer.signTypedData(
       {
         name: EIP712_DOMAIN_NAME,
-        version: EIP712_DOMAIN_VERSION,
+        version: getDomainVersion(registryVersion),
         chainId: networkConfig.chainId,
         verifyingContract: config.contractAddress as string,
       },
-      ANALYSIS_EIP712_TYPES,
-      {
+      getAnalysisEip712Types(registryVersion),
+      getAnalysisTypedDataValue(registryVersion, {
         taskHash,
         rootHash: rootHashBytes32,
         score: input.score,
+        storageUri: input.storageUri,
+        recommendation: input.recommendation,
         timestamp: signedAt,
-      }
+      })
     );
 
     const tx = await contract["recordAnalysis(bytes32,bytes32,string,uint8,string,uint256,bytes)"](
@@ -421,6 +606,10 @@ export async function getLatestAnalysisFromChain(): Promise<LatestAnalysisRecord
     const analysisCount = await contract.analysisCount();
     const [submitter, rootHash, storageUri, score, recommendation, timestamp] =
       await contract.getLatestAnalysis();
+    const registryVersion = await getRegistryEip712Version(ethers, contract);
+    const analysisId = Number(analysisCount);
+    const numericScore = Number(score);
+    const numericTimestamp = Number(timestamp);
 
     let taskHash: string | undefined;
     let signature: string | undefined;
@@ -429,24 +618,87 @@ export async function getLatestAnalysisFromChain(): Promise<LatestAnalysisRecord
       "LEGACY_UNAUTHENTICATED";
 
     try {
-      const [latestTaskHash, latestSignature, submitterAuthorized] =
-        await contract.getLatestAnalysisAuth();
-      taskHash = latestTaskHash;
-      signature = latestSignature;
-      signatureVerified = Boolean(submitterAuthorized);
-      registryMode = "SIGNED_OPERATOR";
+      if (registryVersion === "4") {
+        const authContract = new ethers.Contract(
+          config.contractAddress,
+          ANALYSIS_REGISTRY_V4_AUTH_ABI,
+          provider
+        );
+        const [latestTaskHash, submitterAuthorized] =
+          await authContract.getLatestAnalysisAuth();
+
+        taskHash = latestTaskHash;
+        signature = await getAnalysisEventSignature(
+          ethers,
+          provider,
+          contract,
+          config.contractAddress,
+          analysisId
+        );
+        signatureVerified = signature
+          ? Boolean(submitterAuthorized) &&
+            verifyAnalysisSignature(
+              ethers,
+              registryVersion,
+              networkConfig.chainId,
+              config.contractAddress,
+              submitter,
+              signature,
+              {
+                taskHash: latestTaskHash,
+                rootHash,
+                score: numericScore,
+                storageUri,
+                recommendation,
+                timestamp: numericTimestamp,
+              }
+            )
+          : Boolean(submitterAuthorized);
+        registryMode = "SIGNED_OPERATOR";
+      } else if (registryVersion === "3") {
+        const authContract = new ethers.Contract(
+          config.contractAddress,
+          ANALYSIS_REGISTRY_V3_AUTH_ABI,
+          provider
+        );
+        const [latestTaskHash, latestSignature, submitterAuthorized] =
+          await authContract.getLatestAnalysisAuth();
+
+        taskHash = latestTaskHash;
+        signature = latestSignature;
+        signatureVerified =
+          Boolean(submitterAuthorized) &&
+          typeof latestSignature === "string" &&
+          verifyAnalysisSignature(
+            ethers,
+            registryVersion,
+            networkConfig.chainId,
+            config.contractAddress,
+            submitter,
+            latestSignature,
+            {
+              taskHash: latestTaskHash,
+              rootHash,
+              score: numericScore,
+              storageUri,
+              recommendation,
+              timestamp: numericTimestamp,
+            }
+          );
+        registryMode = "SIGNED_OPERATOR";
+      }
     } catch {
       // Older registry contract: keep legacy read shape.
     }
 
     return {
-      analysisId: Number(analysisCount),
+      analysisId,
       submitter,
       rootHash,
       storageUri,
-      score: Number(score),
+      score: numericScore,
       recommendation,
-      timestamp: Number(timestamp),
+      timestamp: numericTimestamp,
       taskHash,
       signature,
       signatureVerified,
