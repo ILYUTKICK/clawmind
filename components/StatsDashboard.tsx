@@ -799,7 +799,7 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
             }
           />
           <KpiCard
-            label="Memory records"
+            label="Semantic memory"
             value={liveData.memory.totalRecords.toLocaleString()}
             detail={
               <>
@@ -810,7 +810,7 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
                 <span className="font-mono text-[var(--cm-text-secondary)]">
                   {liveData.memory.runtimeGeneratedCount}
                 </span>{" "}
-                runtime records.
+                runtime records in the deduped index.
               </>
             }
           />

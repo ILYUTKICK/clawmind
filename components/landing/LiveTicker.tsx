@@ -106,7 +106,7 @@ export function LiveTicker({
             {signedPercentage}% signed
           </Link>
           <Link href="/stats" className="rounded-lg border border-[var(--cm-border)] px-3 py-2 transition hover:border-[var(--cm-accent)] hover:text-teal-200">
-            {memoryRecords} memory records
+            {memoryRecords} memory index records
           </Link>
           <Link href="/stats" className="rounded-lg border border-[var(--cm-border)] px-3 py-2 transition hover:border-[var(--cm-accent)] hover:text-teal-200">
             {networkLabel}

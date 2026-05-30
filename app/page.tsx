@@ -172,14 +172,14 @@ export default async function LandingPage() {
           }}
         />
         <FeatureCard
-          title="Memory grows with every analysis"
-          description="Each analysis is stored in a 0G Storage memory index. Future tasks retrieve relevant precedents through semantic similarity, so context improves with every run."
+          title="Semantic memory tracks reusable context"
+          description="ClawMind keeps a deduplicated 0G-backed memory index: seed precedents plus runtime records from prior analyses. It is reusable context, not a 1:1 count of the current registry."
           visualType="memory"
           visualData={{
             totalRecords: totalMemory,
             seedRecords: seedMemory,
             runtimeRecords: runtimeMemory,
-            newThisWeek: runtimeMemory,
+            deduped: true,
           }}
         />
       </section>

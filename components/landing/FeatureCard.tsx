@@ -15,7 +15,7 @@ type MemoryVisual = {
   totalRecords: number;
   seedRecords: number;
   runtimeRecords: number;
-  newThisWeek: number;
+  deduped: boolean;
 };
 
 type FeatureCardProps = {
@@ -58,10 +58,10 @@ function Visual({ visualType, visualData }: Pick<FeatureCardProps, "visualType" 
   const data = visualData as MemoryVisual;
   return (
     <div className="space-y-2">
-      <div className="flex justify-between gap-4"><span>TOTAL RECORDS</span><span>{data.totalRecords}</span></div>
-      <div className="flex justify-between gap-4"><span>SEED</span><span>{data.seedRecords}</span></div>
-      <div className="flex justify-between gap-4"><span>RUNTIME</span><span>{data.runtimeRecords}</span></div>
-      <div className="flex justify-between gap-4 text-[var(--cm-accent)]"><span>NEW THIS WEEK</span><span>+{data.newThisWeek}</span></div>
+      <div className="flex justify-between gap-4"><span>MEMORY RECORDS</span><span>{data.totalRecords}</span></div>
+      <div className="flex justify-between gap-4"><span>SEED PRECEDENTS</span><span>{data.seedRecords}</span></div>
+      <div className="flex justify-between gap-4"><span>RUNTIME LEARNED</span><span>{data.runtimeRecords}</span></div>
+      <div className="flex justify-between gap-4 text-[var(--cm-accent)]"><span>DEDUPED INDEX</span><span>{data.deduped ? "YES" : "NO"}</span></div>
     </div>
   );
 }
@@ -77,4 +77,3 @@ export function FeatureCard({ title, description, visualType, visualData }: Feat
     </article>
   );
 }
-
