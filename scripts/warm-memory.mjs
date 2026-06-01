@@ -17,7 +17,7 @@
 const DEFAULT_LOCAL_BASE_URL = "http://localhost:3000";
 const PROD_BASE_URL = "https://clawmind-puce.vercel.app";
 const DEFAULT_LIMIT = 5;
-const DEFAULT_DELAY_MS = 15_000;
+const DEFAULT_DELAY_MS = 65_000;
 const DEFAULT_POLL_MS = 10_000;
 const DEFAULT_TIMEOUT_MS = 8 * 60_000;
 
@@ -112,7 +112,7 @@ function printHelp() {
   console.log("  --base-url <url>       Override the ClawMind app base URL");
   console.log("  --limit <n>            Number of curated tasks to run (default: 5)");
   console.log("  --start <n>            Start offset in the task list (default: 0)");
-  console.log("  --delay-ms <ms>        Delay after each completed task (default: 15000)");
+  console.log("  --delay-ms <ms>        Delay after each completed task (default: 65000)");
   console.log("  --poll-ms <ms>         Status polling interval (default: 10000)");
   console.log("  --timeout-ms <ms>      Per-task timeout (default: 480000)");
 }

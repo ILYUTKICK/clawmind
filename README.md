@@ -161,6 +161,7 @@ ZERO_G_STORAGE_PRIVATE_KEY=your_mainnet_wallet_private_key
 ZERO_G_ANALYSIS_REGISTRY_ADDRESS=0x24bAAC6720ae5B01A1CC90eCC1C15AFcb903E121
 ZERO_G_ANALYSIS_REGISTRY_DEPLOY_BLOCK=34500039
 ZERO_G_ALLOW_LEGACY_REGISTRY_WRITES=false
+CLAWMIND_ANALYZE_RATE_LIMIT_SECONDS=60
 CLAWMIND_MEMORY_LIMIT=200
 ```
 
@@ -204,7 +205,7 @@ npm run warm-memory -- --limit 10
 npm run warm-memory -- --prod --limit 5
 ```
 
-`--prod` writes through the live app and can spend real 0G Compute, Storage, and Chain resources. Keep batches small when warming production memory.
+`--prod` writes through the live app and can spend real 0G Compute, Storage, and Chain resources. Keep batches small when warming production memory. The script waits 65 seconds between tasks by default so it respects the public `/api/analyze` rate limit.
 
 ## API
 

@@ -6,6 +6,7 @@ import {
   completeTask,
   failTask,
 } from "@/lib/orchestrator/task-store";
+import { checkAnalyzeRateLimit } from "@/lib/rate-limit/analyze-rate-limit";
 import { AnalysisSource } from "@/lib/types";
 
 // Vercel serverless function max duration (seconds)
@@ -43,6 +44,26 @@ export async function POST(request: NextRequest) {
 
     const task = body.task.trim();
     const source = detectAnalysisSource(request, body.source);
+    const rateLimit = await checkAnalyzeRateLimit(request);
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded.",
+          details: `Please wait ${rateLimit.retryAfterSeconds}s before starting another analysis.`,
+          retryAfterSeconds: rateLimit.retryAfterSeconds,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateLimit.retryAfterSeconds),
+            "X-RateLimit-Limit": "1",
+            "X-RateLimit-Window": String(rateLimit.windowSeconds),
+          },
+        },
+      );
+    }
+
     const taskId = crypto.randomUUID();
 
     // Create task in store (KV or in-memory)

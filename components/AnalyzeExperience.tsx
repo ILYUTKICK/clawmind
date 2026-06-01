@@ -796,9 +796,21 @@ export default function AnalyzeExperience() {
         status?: string;
         error?: string;
         details?: string;
+        retryAfterSeconds?: number;
       };
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const retryAfter =
+            data.retryAfterSeconds ??
+            Number.parseInt(response.headers.get("Retry-After") ?? "", 10);
+          const suffix = Number.isFinite(retryAfter)
+            ? ` Try again in ${retryAfter}s.`
+            : "";
+
+          throw new Error(`${data.error || "Rate limit exceeded."}${suffix}`);
+        }
+
         throw new Error(data.details || data.error || "Analysis request failed.");
       }
 
