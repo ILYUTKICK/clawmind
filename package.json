@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "warm-memory": "node scripts/warm-memory.mjs"
   },
   "dependencies": {
     "@0gfoundation/0g-storage-ts-sdk": "^1.2.8",

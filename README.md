@@ -194,6 +194,18 @@ cd contracts && forge test -vv
 
 The main app is checked with ESLint and a production Next.js build. The signed registry has Foundry tests in `contracts/test/AnalysisRegistry.t.sol` and a GitHub Actions workflow at `.github/workflows/foundry-tests.yml`.
 
+## Memory Warm-Up
+
+Use curated runs instead of random prompts when expanding semantic memory. The warm-up script starts one analysis at a time, waits for `/api/status` completion, then moves to the next task.
+
+```bash
+npm run warm-memory
+npm run warm-memory -- --limit 10
+npm run warm-memory -- --prod --limit 5
+```
+
+`--prod` writes through the live app and can spend real 0G Compute, Storage, and Chain resources. Keep batches small when warming production memory.
+
 ## API
 
 ```bash
