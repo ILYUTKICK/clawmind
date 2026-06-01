@@ -9,9 +9,30 @@ const REDIS_MEMORY_RECORDS_KEY = "clawmind:memory:records";
 const REDIS_MEMORY_INDEX_URI_KEY = "clawmind:memory:latest-index-uri";
 const BOOTSTRAP_MEMORY_INDEX_URI =
   "0g://0x6b856021b2581579576e507ec344dd0d86cdb6f55d7bdbc3e2f3e4ee45e06025?tx=0x1538c1a76c6da1ff64a039ac89223e4a5b64d0e18e6bb3d0c54bcae82ea49535";
+const DEFAULT_MEMORY_LIMIT = 200;
+const MAX_MEMORY_LIMIT = 1000;
 
 let redisClient: Redis | null = null;
 let redisChecked = false;
+
+export function getMemoryLimit(): number {
+  const rawLimit = process.env.CLAWMIND_MEMORY_LIMIT;
+
+  if (!rawLimit) {
+    return DEFAULT_MEMORY_LIMIT;
+  }
+
+  const parsedLimit = Number.parseInt(rawLimit, 10);
+
+  if (!Number.isFinite(parsedLimit) || parsedLimit < 1) {
+    console.warn(
+      `[Memory Store] Invalid CLAWMIND_MEMORY_LIMIT=${rawLimit}; using ${DEFAULT_MEMORY_LIMIT}.`,
+    );
+    return DEFAULT_MEMORY_LIMIT;
+  }
+
+  return Math.min(parsedLimit, MAX_MEMORY_LIMIT);
+}
 
 function getRedisUrl(): string {
   return process.env.KV_REDIS_URL || process.env.REDIS_URL || "";
@@ -282,11 +303,11 @@ export async function readPersistentMemories(): Promise<MemoryRecord[]> {
     readZeroGMemoryIndex(),
   ]);
 
-  return deduplicateMemories([...redisMemories, ...zeroGMemories, ...localMemories]).slice(0, 50);
+  return deduplicateMemories([...redisMemories, ...zeroGMemories, ...localMemories]).slice(0, getMemoryLimit());
 }
 
 export async function writePersistentMemories(memories: MemoryRecord[]): Promise<void> {
-  const sortedMemories = deduplicateMemories(memories).slice(0, 50);
+  const sortedMemories = deduplicateMemories(memories).slice(0, getMemoryLimit());
   const redis = await getRedis();
 
   if (redis) {
@@ -317,7 +338,7 @@ export async function writePersistentMemories(memories: MemoryRecord[]): Promise
 
 export async function appendPersistentMemory(memory: MemoryRecord): Promise<MemoryRecord[]> {
   const existingMemories = await readPersistentMemories();
-  const nextMemories = deduplicateMemories([memory, ...existingMemories]).slice(0, 50);
+  const nextMemories = deduplicateMemories([memory, ...existingMemories]).slice(0, getMemoryLimit());
 
   await writePersistentMemories(nextMemories);
 
