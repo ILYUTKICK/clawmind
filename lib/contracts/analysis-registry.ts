@@ -2,7 +2,12 @@
 // ClawMind — On-chain Analysis Registry integration for 0G chain
 // ---------------------------------------------------------------------------
 
-import { getNetworkConfig, getExplorerTxUrl } from "@/lib/storage/zero-g-config";
+import {
+  getExplorerAddressUrl,
+  getExplorerBlockUrl,
+  getExplorerTxUrl,
+  getNetworkConfig,
+} from "@/lib/storage/zero-g-config";
 import type { OnChainReceipt } from "@/lib/types";
 import type { Contract, ContractTransactionReceipt, Provider, TypedDataField } from "ethers";
 
@@ -365,6 +370,55 @@ async function getAnalysisEventSignature(
   }
 }
 
+type AnalysisEventDetails = {
+  signature?: string;
+  txHash?: string;
+  blockNumber?: number;
+};
+
+async function getAnalysisEventDetails(
+  ethers: typeof import("ethers").ethers,
+  provider: Provider,
+  contract: Contract,
+  contractAddress: string,
+  analysisId: number
+): Promise<AnalysisEventDetails> {
+  try {
+    const topic0 = ethers.id(
+      "AnalysisRecorded(uint256,address,bytes32,bytes32,uint8,string,string,uint256,bytes)"
+    );
+    const topic1 = ethers.zeroPadValue(ethers.toBeHex(analysisId), 32);
+    const logs = await provider.getLogs({
+      address: contractAddress,
+      topics: [topic0, topic1],
+      fromBlock: getRegistryDeployBlock(),
+      toBlock: "latest",
+    });
+
+    for (let i = logs.length - 1; i >= 0; i--) {
+      const parsedLog = contract.interface.parseLog({
+        topics: logs[i].topics as string[],
+        data: logs[i].data,
+      });
+
+      const signature = parsedLog?.args?.signature;
+
+      return {
+        signature:
+          typeof signature === "string" && signature.length > 2
+            ? signature
+            : undefined,
+        txHash: logs[i].transactionHash,
+        blockNumber: logs[i].blockNumber,
+      };
+    }
+
+    return {};
+  } catch {
+    return {};
+  }
+}
+
 function verifyAnalysisSignature(
   ethers: typeof import("ethers").ethers,
   registryVersion: RegistryEip712Version,
@@ -575,6 +629,27 @@ type LatestAnalysisRecord = {
   registryMode: "SIGNED_OPERATOR" | "LEGACY_UNAUTHENTICATED";
 } | null;
 
+export type AnalysisRegistryRecord = {
+  analysisId: number;
+  submitter: string;
+  rootHash: string;
+  storageUri: string;
+  score: number;
+  recommendation: string;
+  timestamp: number;
+  contractAddress: string;
+  contractExplorerUrl: string;
+  txHash?: string;
+  txExplorerUrl?: string;
+  blockNumber?: number;
+  blockExplorerUrl?: string;
+  taskHash?: string;
+  signature?: string;
+  signatureVerified?: boolean;
+  submitterAuthorized?: boolean;
+  registryMode: "SIGNED_OPERATOR" | "LEGACY_UNAUTHENTICATED";
+};
+
 /**
  * Reads the latest analysis record from the on-chain registry.
  *
@@ -707,6 +782,152 @@ export async function getLatestAnalysisFromChain(): Promise<LatestAnalysisRecord
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     console.warn(`[0G Chain] getLatestAnalysis failed: ${message}`);
+    return null;
+  }
+}
+
+export async function getAnalysisFromChainById(
+  analysisId: number
+): Promise<AnalysisRegistryRecord | null> {
+  const config = getRegistryConfig();
+  const networkConfig = getNetworkConfig();
+
+  if (
+    !Number.isInteger(analysisId) ||
+    analysisId < 1 ||
+    !config.contractAddress ||
+    !config.contractAddress.startsWith("0x")
+  ) {
+    return null;
+  }
+
+  try {
+    const { ethers } = await import("ethers");
+    const provider = new ethers.JsonRpcProvider(networkConfig.evmRpc);
+    const contract = new ethers.Contract(
+      config.contractAddress,
+      ANALYSIS_REGISTRY_ABI,
+      provider
+    );
+    const analysisCount = Number(await contract.analysisCount());
+
+    if (analysisId > analysisCount) {
+      return null;
+    }
+
+    const [submitter, rootHash, storageUri, score, recommendation, timestamp] =
+      await contract.getAnalysis(analysisId);
+    const registryVersion = await getRegistryEip712Version(ethers, contract);
+    const numericScore = Number(score);
+    const numericTimestamp = Number(timestamp);
+    const eventDetails = await getAnalysisEventDetails(
+      ethers,
+      provider,
+      contract,
+      config.contractAddress,
+      analysisId
+    );
+
+    let taskHash: string | undefined;
+    let signature = eventDetails.signature;
+    let signatureVerified: boolean | undefined;
+    let submitterAuthorized: boolean | undefined;
+    let registryMode: "SIGNED_OPERATOR" | "LEGACY_UNAUTHENTICATED" =
+      "LEGACY_UNAUTHENTICATED";
+
+    try {
+      if (registryVersion === "4") {
+        const [analysisTaskHash, authorized] =
+          await contract.getAnalysisAuth(analysisId);
+
+        taskHash = analysisTaskHash;
+        submitterAuthorized = Boolean(authorized);
+        signatureVerified = signature
+          ? submitterAuthorized &&
+            verifyAnalysisSignature(
+              ethers,
+              registryVersion,
+              networkConfig.chainId,
+              config.contractAddress,
+              submitter,
+              signature,
+              {
+                taskHash: analysisTaskHash,
+                rootHash,
+                score: numericScore,
+                storageUri,
+                recommendation,
+                timestamp: numericTimestamp,
+              }
+            )
+          : submitterAuthorized;
+        registryMode = "SIGNED_OPERATOR";
+      } else if (registryVersion === "3") {
+        const authContract = new ethers.Contract(
+          config.contractAddress,
+          [
+            "function getAnalysisAuth(uint256 analysisId) external view returns (bytes32 taskHash, bytes memory signature, bool submitterAuthorized)",
+          ],
+          provider
+        );
+        const [analysisTaskHash, analysisSignature, authorized] =
+          await authContract.getAnalysisAuth(analysisId);
+
+        taskHash = analysisTaskHash;
+        signature = analysisSignature;
+        submitterAuthorized = Boolean(authorized);
+        signatureVerified =
+          submitterAuthorized &&
+          typeof analysisSignature === "string" &&
+          verifyAnalysisSignature(
+            ethers,
+            registryVersion,
+            networkConfig.chainId,
+            config.contractAddress,
+            submitter,
+            analysisSignature,
+            {
+              taskHash: analysisTaskHash,
+              rootHash,
+              score: numericScore,
+              storageUri,
+              recommendation,
+              timestamp: numericTimestamp,
+            }
+          );
+        registryMode = "SIGNED_OPERATOR";
+      }
+    } catch {
+      // Older registry contract: keep legacy read shape.
+    }
+
+    return {
+      analysisId,
+      submitter,
+      rootHash,
+      storageUri,
+      score: numericScore,
+      recommendation,
+      timestamp: numericTimestamp,
+      contractAddress: config.contractAddress,
+      contractExplorerUrl: getExplorerAddressUrl(config.contractAddress),
+      txHash: eventDetails.txHash,
+      txExplorerUrl: eventDetails.txHash
+        ? getExplorerTxUrl(eventDetails.txHash)
+        : undefined,
+      blockNumber: eventDetails.blockNumber,
+      blockExplorerUrl: eventDetails.blockNumber
+        ? getExplorerBlockUrl(eventDetails.blockNumber)
+        : undefined,
+      taskHash,
+      signature,
+      signatureVerified,
+      submitterAuthorized,
+      registryMode,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.warn(`[0G Chain] getAnalysis(${analysisId}) failed: ${message}`);
     return null;
   }
 }

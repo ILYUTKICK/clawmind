@@ -9,6 +9,7 @@ ClawMind runs multi-agent Web3 due diligence and anchors the final report on 0G 
 | Demo video | https://youtu.be/ddJx034yrJw |
 | Live app | https://clawmind-puce.vercel.app |
 | Run analysis | https://clawmind-puce.vercel.app/analysis |
+| Receipt example | https://clawmind-puce.vercel.app/receipt/19 |
 | Judge mode | https://clawmind-puce.vercel.app/judge |
 | Public stats | https://clawmind-puce.vercel.app/stats |
 | Judge API | https://clawmind-puce.vercel.app/api/judge |
@@ -221,6 +222,7 @@ curl -X POST https://clawmind-puce.vercel.app/api/analyze \
 |---|---|
 | `POST /api/analyze` | Runs 7 reasoning agents plus report storage, memory index, and on-chain registry proof steps. |
 | `GET /api/judge` | Returns judge-ready proof: contract, pipeline, memory, and recent analyses. |
+| `GET /receipt/[analysisId]` | Shows a public proof page for a signed on-chain analysis receipt. |
 | `GET /api/openclaw/manifest` | Returns the OpenClaw manifest as YAML. |
 | `GET /api/openclaw/manifest?format=json` | Returns parsed manifest plus live 0G evidence. |
 | `POST /api/report/retrieve` | Retrieves a report by `0g://` URI or root hash. |
@@ -259,6 +261,7 @@ app/
   api/judge/route.ts
   api/openclaw/manifest/route.ts
   judge/page.tsx
+  receipt/[analysisId]/page.tsx
 components/
   AdversarialPanel.tsx
   AgentPipeline.tsx

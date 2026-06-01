@@ -99,8 +99,10 @@ function getLatestAnalysis(data: JudgeData | null): LandingLatestAnalysis | null
     return null;
   }
 
+  const analysisId = latest?.analysisId ?? recent.analysisId;
+
   return {
-    analysisId: latest?.analysisId ?? recent.analysisId,
+    analysisId,
     score: latest?.score ?? recent.score,
     recommendation: latest?.recommendation ?? recent.recommendation,
     timestamp: latest?.timestamp ?? recent.timestamp,
@@ -110,7 +112,7 @@ function getLatestAnalysis(data: JudgeData | null): LandingLatestAnalysis | null
       data.integration.onChain.explorerUrl ||
       recent.explorerUrl ||
       "/stats",
-    reportHref: "/judge",
+    reportHref: `/receipt/${analysisId}`,
     signedBy: latest?.submitter ?? null,
     signatureVerified:
       latest?.signatureVerified ??

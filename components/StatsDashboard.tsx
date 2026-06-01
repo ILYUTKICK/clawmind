@@ -549,14 +549,12 @@ function FeedTable({
                               tone={row.criticPenalty ? "warning" : undefined}
                             />
                             <div className="mt-3 flex flex-wrap gap-2">
-                              <a
-                                href={row.txUrl ?? row.explorerUrl}
-                                target="_blank"
-                                rel="noreferrer"
+                              <Link
+                                href={`/receipt/${row.analysisId}`}
                                 className="rounded-lg border border-[var(--cm-border)] px-3 py-2 text-xs text-[var(--cm-text-secondary)] transition hover:border-[var(--cm-accent)] hover:text-teal-200"
                               >
                                 View receipt
-                              </a>
+                              </Link>
                               <Link
                                 href="/judge"
                                 className="rounded-lg border border-[var(--cm-border)] px-3 py-2 text-xs text-[var(--cm-text-secondary)] transition hover:border-[var(--cm-accent)] hover:text-teal-200"
@@ -843,14 +841,12 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
                   {latest.signed ? "signed operator verified" : "signature not observed"}
                 </span>
               </div>
-              <a
-                href={latest.txUrl ?? latest.explorerUrl}
-                target="_blank"
-                rel="noreferrer"
+              <Link
+                href={`/receipt/${latest.analysisId}`}
                 className="w-fit rounded-lg border border-[var(--cm-border)] px-3 py-2 text-[var(--cm-text-primary)] transition hover:border-[var(--cm-accent)] hover:text-teal-200"
               >
                 View receipt
-              </a>
+              </Link>
             </div>
           </section>
         ) : null}
