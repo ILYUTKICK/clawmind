@@ -71,7 +71,7 @@ function normalizeCriticOutput(value: unknown): CriticOutput | null {
   };
 }
 
-function extractCriticJson(rawOutput: string): CriticOutput | null {
+export function extractCriticJson(rawOutput: string): CriticOutput | null {
   try {
     const cleanedOutput = rawOutput
       .trim()

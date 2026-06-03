@@ -159,3 +159,9 @@ export async function checkAnalyzeRateLimit(
     windowSeconds,
   };
 }
+
+export function resetAnalyzeRateLimitStateForTests(): void {
+  redisClient = null;
+  redisChecked = false;
+  localLimits.clear();
+}

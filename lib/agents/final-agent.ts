@@ -2,7 +2,7 @@ import { AnalysisReport, MemoryRecord, Recommendation, RiskItem, RiskSeverity } 
 import { runInference } from "@/lib/compute/zero-g-compute";
 import type { CriticChallenge, CriticOutput } from "./critic";
 
-type FinalAgentInput = {
+export type FinalAgentInput = {
   task: string;
   memories: MemoryRecord[];
   plan: string;
@@ -642,7 +642,7 @@ function alignRisksWithDecision(
   return risks.slice(0, 6);
 }
 
-function createFallbackReport(input: FinalAgentInput): AnalysisReport {
+export function createFallbackReport(input: FinalAgentInput): AnalysisReport {
   const memoryRiskHints = Array.from(new Set(input.memories.flatMap((memory) => memory.risks))).slice(0, 3);
 
   const risks: RiskItem[] = [
@@ -709,7 +709,7 @@ function createFallbackReport(input: FinalAgentInput): AnalysisReport {
   };
 }
 
-function applyScoreCalibration(
+export function applyScoreCalibration(
   input: FinalAgentInput,
   report: AnalysisReport,
   modelScore: number,
@@ -762,7 +762,7 @@ function applyScoreCalibration(
   };
 }
 
-function buildReportFromModelOutput(input: FinalAgentInput, rawOutput: string): AnalysisReport {
+export function buildReportFromModelOutput(input: FinalAgentInput, rawOutput: string): AnalysisReport {
   const parsed = extractJsonObject(rawOutput);
   const fallback = createFallbackReport(input);
 

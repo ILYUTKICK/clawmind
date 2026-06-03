@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint app lib next.config.ts"
+    "lint": "eslint app lib next.config.ts",
+    "typecheck": "tsc --noEmit --pretty false",
+    "ci": "npm run lint && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.0",
