@@ -189,12 +189,22 @@ Then open `http://localhost:3000`.
 ## Verification Commands
 
 ```bash
-npm run lint
-npm run build
-cd contracts && forge test -vv
+npm run ci
+npm run ci:mcp
+npm run audit:contracts
 ```
 
-The main app is checked with ESLint and a production Next.js build. The signed registry has Foundry tests in `contracts/test/AnalysisRegistry.t.sol` and a GitHub Actions workflow at `.github/workflows/foundry-tests.yml`.
+The main app is checked with ESLint, a production Next.js build, typecheck, unit tests, and Foundry tests. The MCP server has its own lint, typecheck, and build command. The signed registry has Foundry tests in `contracts/test/AnalysisRegistry.t.sol`, a Slither audit runner, and GitHub Actions coverage in `.github/workflows/foundry-tests.yml`.
+
+## Contract Audit
+
+The v4 signed registry has an internal static-analysis pass documented in `docs/audits/analysis-registry-audit-notes.md` and `docs/audits/analysis-registry-slither.md`.
+
+```bash
+npm run audit:contracts
+```
+
+This runs Slither through `uvx`, allows only the documented accepted findings, and then runs the Foundry contract tests.
 
 ## Memory Warm-Up
 
