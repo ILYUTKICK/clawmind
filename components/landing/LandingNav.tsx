@@ -19,7 +19,7 @@ export function LandingNav() {
             Live data
           </Link>
           <a
-            href="https://github.com/ILYUTKICK/clawmind#readme"
+            href="https://clawmind.mintlify.app"
             target="_blank"
             rel="noreferrer"
             className="transition hover:text-[var(--cm-text-primary)]"

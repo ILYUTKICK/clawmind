@@ -56,7 +56,7 @@ export function McpIntegrationBlock({
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <a
-            href="https://github.com/ILYUTKICK/clawmind#remote-mcp-server"
+            href="https://clawmind.mintlify.app/api-reference"
             target="_blank"
             rel="noreferrer"
             className="rounded-lg border border-[var(--cm-border-emphasis)] px-4 py-2 text-sm text-[var(--cm-text-primary)] transition hover:border-[var(--cm-accent)] hover:text-teal-200"
@@ -92,4 +92,3 @@ export function McpIntegrationBlock({
     </section>
   );
 }
-

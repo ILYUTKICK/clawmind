@@ -130,7 +130,7 @@ export default async function LandingPage() {
   const seedMemory = data?.memory.seedCount ?? 0;
   const contractAddress =
     data?.integration.onChain.contractAddress ??
-    "0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1";
+    "0x24bAAC6720ae5B01A1CC90eCC1C15AFcb903E121";
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[var(--cm-background)] text-[var(--cm-text-primary)]">

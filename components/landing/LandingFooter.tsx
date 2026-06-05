@@ -12,9 +12,9 @@ export function LandingFooter({ version, buildHash }: LandingFooterProps) {
           <p className="mt-1 font-mono text-xs">v{version} · build {buildHash}</p>
         </div>
         <nav className="flex flex-wrap gap-4">
-          <a href="https://github.com/ILYUTKICK/clawmind#readme" target="_blank" rel="noreferrer" className="transition hover:text-[var(--cm-text-primary)]">Docs</a>
+          <a href="https://clawmind.mintlify.app" target="_blank" rel="noreferrer" className="transition hover:text-[var(--cm-text-primary)]">Docs</a>
           <a href="https://github.com/ILYUTKICK/clawmind" target="_blank" rel="noreferrer" className="transition hover:text-[var(--cm-text-primary)]">GitHub</a>
-          <a href="https://chainscan.0g.ai/address/0x08a9c275f5d0764a32f9dda4f50ba6f9a828e2b1" target="_blank" rel="noreferrer" className="transition hover:text-[var(--cm-text-primary)]">0G mainnet</a>
+          <a href="https://chainscan.0g.ai/address/0x24bAAC6720ae5B01A1CC90eCC1C15AFcb903E121" target="_blank" rel="noreferrer" className="transition hover:text-[var(--cm-text-primary)]">0G mainnet</a>
           <a href="/api/openclaw/manifest" className="transition hover:text-[var(--cm-text-primary)]">OpenClaw manifest</a>
         </nav>
         <p className="font-mono text-xs md:text-right">Built for 0G APAC Hackathon · 2026</p>

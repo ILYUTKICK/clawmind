@@ -54,7 +54,7 @@ function ReportSection({
   title,
   count,
   children,
-  defaultOpen = true,
+  defaultOpen = false,
 }: {
   title: string;
   count?: number;
@@ -219,7 +219,6 @@ export function ReportView({ report, task, receipt, onChainReceipt }: ReportView
         <ReportSection
           title="Findings"
           count={report.opportunities.length + report.nextSteps.length + report.evidence.length}
-          defaultOpen={false}
         >
           <div className="grid gap-5 lg:grid-cols-3">
             <div>
