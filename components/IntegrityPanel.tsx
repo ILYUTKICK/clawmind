@@ -203,6 +203,7 @@ export function IntegrityPanel({ reportHash, onChainReceipt }: IntegrityPanelPro
   const taskHash = onChainReceipt?.taskHash ?? verifyData?.onChain?.taskHash ?? "";
   const rootHash = verifyData?.onChain?.rootHash ?? reportHash ?? "";
   const signedBy = onChainReceipt?.signedBy ?? verifyData?.onChain?.submitter ?? "";
+  const storageUri = verifyData?.onChain?.storageUri ?? "";
   const contractAddress = onChainReceipt?.contractAddress || verifyData?.contract?.address || "";
   const txHash = onChainReceipt?.txHash ?? "";
   const txUrl = onChainReceipt?.explorerTxUrl || "";
@@ -249,6 +250,13 @@ export function IntegrityPanel({ reportHash, onChainReceipt }: IntegrityPanelPro
           onCopy={copy}
         />
         <ReceiptRow
+          label="storage URI"
+          value={storageUri ? shortenHash(storageUri, 16, 8) : ""}
+          copyValue={storageUri}
+          copied={copiedKey === storageUri}
+          onCopy={copy}
+        />
+        <ReceiptRow
           label="signed by"
           value={signedBy ? shortenHash(signedBy, 10, 4) : ""}
           copyValue={signedBy}
@@ -284,17 +292,23 @@ export function IntegrityPanel({ reportHash, onChainReceipt }: IntegrityPanelPro
       </div>
 
       {verifyData?.integrityChecks ? (
-        <div className="mt-4 grid gap-2 md:grid-cols-3">
-          <CheckLine label="Root hash format" value={verifyData.integrityChecks.rootHashFormat} />
-          <CheckLine label="Score range" value={verifyData.integrityChecks.scoreRange} />
-          <CheckLine label="Recommendation" value={verifyData.integrityChecks.validRecommendation} />
-          <CheckLine label="Storage URI" value={verifyData.integrityChecks.hasStorageUri} />
-          <CheckLine label="Submitter" value={verifyData.integrityChecks.hasSubmitter} />
-          <CheckLine
-            label="Operator signature"
-            value={verifyData.integrityChecks.operatorSignatureVerified ?? signatureVerified}
-          />
-        </div>
+        <details className="group mt-4 rounded-lg border border-[var(--cm-border)] bg-black/20">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2">
+            <span className="text-xs font-semibold uppercase text-[var(--cm-text-muted)]">Verification details</span>
+            <span className="text-[var(--cm-text-muted)] transition group-open:rotate-90">›</span>
+          </summary>
+          <div className="grid gap-2 border-t border-[var(--cm-border)] p-3 md:grid-cols-2">
+            <CheckLine label="Root hash format" value={verifyData.integrityChecks.rootHashFormat} />
+            <CheckLine label="Score range" value={verifyData.integrityChecks.scoreRange} />
+            <CheckLine label="Recommendation" value={verifyData.integrityChecks.validRecommendation} />
+            <CheckLine label="Storage URI" value={verifyData.integrityChecks.hasStorageUri} />
+            <CheckLine label="Submitter" value={verifyData.integrityChecks.hasSubmitter} />
+            <CheckLine
+              label="Operator signature"
+              value={verifyData.integrityChecks.operatorSignatureVerified ?? signatureVerified}
+            />
+          </div>
+        </details>
       ) : null}
 
       {!loading && fetchError ? (

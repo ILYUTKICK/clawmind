@@ -29,6 +29,7 @@ function getSimilarityLabel(score: number): string {
 
 export function MemoryPanel({ memories }: MemoryPanelProps) {
   const [memoryStats, setMemoryStats] = useState<MemoryStats | null>(null);
+  const topMemory = memories[0];
   const retrievedCounts = useMemo(() => {
     return memories.reduce(
       (acc, memory) => {
@@ -67,17 +68,17 @@ export function MemoryPanel({ memories }: MemoryPanelProps) {
 
   return (
     <section className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-surface)] p-5">
-      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-4">
         <div>
           <p className="text-xs uppercase text-[var(--cm-text-muted)]">Persistent Memory</p>
-          <h2 className="mt-2 text-lg font-semibold text-[var(--cm-text-primary)]">
-            Memory retrieved for this task
-          </h2>
-          <p className="mt-1 text-sm text-[var(--cm-text-muted)]">
-            Embedding-based semantic similarity over the 0G-backed memory index.
+          <h2 className="mt-2 text-lg font-semibold text-[var(--cm-text-primary)]">Memory evidence</h2>
+          <p className="mt-1 text-sm leading-5 text-[var(--cm-text-muted)]">
+            {topMemory
+              ? `${memories.length} retrieved, strongest match ${typeof topMemory.similarityScore === "number" ? `${Math.round(topMemory.similarityScore * 100)}%` : "recorded"}.`
+              : "No retrieved memories for this task."}
           </p>
         </div>
-        <div className="grid gap-2 font-mono text-xs text-zinc-300 sm:grid-cols-3 lg:min-w-[360px]">
+        <div className="grid gap-2 font-mono text-xs text-zinc-300 sm:grid-cols-3">
           <div className="rounded-lg border border-[var(--cm-border)] px-3 py-2">
             <p className="text-[var(--cm-text-muted)]">retrieved</p>
             <p className="mt-1 text-base text-[var(--cm-text-primary)]">{memories.length}</p>
@@ -97,12 +98,40 @@ export function MemoryPanel({ memories }: MemoryPanelProps) {
         </div>
       </div>
 
-      {memories.length === 0 ? (
-        <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4 text-sm text-[var(--cm-text-muted)]">
-          No memory records used yet.
-        </div>
-      ) : (
-        <div className="grid gap-3">
+      {topMemory ? (
+        <article className="mt-4 rounded-lg border border-[var(--cm-border)] bg-black/20 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="line-clamp-2 text-sm font-semibold leading-5 text-zinc-100">{topMemory.task}</p>
+              <p className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-400">{topMemory.summary}</p>
+            </div>
+            {typeof topMemory.similarityScore === "number" ? (
+              <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${getSimilarityColor(topMemory.similarityScore)}`}>
+                {Math.round(topMemory.similarityScore * 100)}%
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {topMemory.risks.slice(0, 3).map((risk) => (
+              <span
+                key={`${topMemory.id}-${risk}`}
+                className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs text-amber-100"
+              >
+                {risk}
+              </span>
+            ))}
+          </div>
+        </article>
+      ) : null}
+
+      {memories.length > 0 ? (
+        <details className="group mt-4 rounded-lg border border-[var(--cm-border)] bg-black/20">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span className="text-sm font-semibold text-[var(--cm-text-primary)]">Memory details</span>
+            <span className="font-mono text-xs text-[var(--cm-text-muted)] group-open:hidden">{memories.length} records</span>
+            <span className="hidden font-mono text-xs text-[var(--cm-text-muted)] group-open:inline">hide</span>
+          </summary>
+          <div className="grid gap-3 border-t border-[var(--cm-border)] p-3">
           {memories.map((memory) => {
             const hasSimilarity = memory.similarityScore !== undefined && memory.similarityScore > 0;
             const similarityPct = hasSimilarity
@@ -203,21 +232,10 @@ export function MemoryPanel({ memories }: MemoryPanelProps) {
               </article>
             );
           })}
-        </div>
-      )}
+          </div>
+        </details>
+      ) : null}
 
-      {/* Embedding info footer */}
-      <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-white/5 pt-3">
-        <span className="text-[10px] text-zinc-600">
-          Embedding model: all-MiniLM-L6-v2 (384 dimensions)
-        </span>
-        <span className="text-[10px] text-zinc-600">
-          Retrieval: cosine similarity top-k
-        </span>
-        <span className="text-[10px] text-zinc-600">
-          Storage: 0G Storage (versioned, immutable snapshots)
-        </span>
-      </div>
     </section>
   );
 }

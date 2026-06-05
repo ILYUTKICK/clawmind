@@ -6,8 +6,6 @@ import { AdversarialPanel } from "@/components/AdversarialPanel";
 import { IntegrityPanel } from "@/components/IntegrityPanel";
 import { MemoryPanel } from "@/components/MemoryPanel";
 import { ReportView } from "@/components/ReportView";
-import { RetrievedReportPanel } from "@/components/RetrievedReportPanel";
-import { StorageReceipt } from "@/components/StorageReceipt";
 import type { AnalysisResult, AgentName, AgentStep } from "@/lib/types";
 import type { InfrastructureStatus } from "@/lib/infrastructure-status";
 
@@ -172,24 +170,6 @@ function stepStatusClasses(status: AgentStep["status"] | "pending", isCritic: bo
   }
 
   return "border-[var(--cm-border)] bg-[var(--cm-surface)] opacity-70";
-}
-
-function recommendationClass(recommendation?: AnalysisResult["report"]["recommendation"]): string {
-  if (recommendation === "GO") {
-    return "border-[var(--cm-accent)] bg-[var(--cm-accent)]/10 text-teal-200";
-  }
-
-  if (recommendation === "NO_GO") {
-    return "border-[var(--cm-critical)] bg-[var(--cm-critical)]/10 text-red-200";
-  }
-
-  return "border-[var(--cm-warning)] bg-[var(--cm-warning)]/10 text-amber-200";
-}
-
-function scoreColor(recommendation?: AnalysisResult["report"]["recommendation"]): string {
-  if (recommendation === "GO") return "var(--cm-accent)";
-  if (recommendation === "NO_GO") return "var(--cm-critical)";
-  return "var(--cm-warning)";
 }
 
 function dotClass(prediction: ExampleTask["prediction"]): string {
@@ -589,72 +569,10 @@ function LivePhase({
   );
 }
 
-function ScoreTransition({ analysis }: { analysis: AnalysisResult }) {
-  const report = analysis.report;
-  const adjustment = report.criticAdjustment;
-  const baseScore = adjustment?.baseScore ?? Math.min(100, report.score + (adjustment?.penalty ?? 0));
-
-  return (
-    <div className="flex flex-col items-center gap-5 border-b border-[var(--cm-border)] px-5 py-8 text-center">
-      <div className="flex max-w-5xl flex-wrap justify-center gap-2">
-        {AGENT_ORDER.map((name, index) => {
-          const isCritic = name === "critic";
-
-          return (
-            <a
-              key={name}
-              href={`#agent-claim-${name}`}
-              className={`inline-flex items-center gap-2 rounded-md border bg-[var(--cm-surface)] px-3 py-1 [font-family:var(--cm-font-mono)] text-[11px] transition hover:-translate-y-0.5 hover:text-[var(--cm-text-primary)] ${
-                isCritic
-                  ? "border-[var(--cm-warning)]/60 text-amber-200 shadow-[0_0_0_1px_rgba(245,158,11,0.12)]"
-                  : "border-[var(--cm-border)] text-[var(--cm-text-muted)] hover:border-[var(--cm-border-emphasis)]"
-              }`}
-              title={`Jump to ${AGENT_META[name].label} claim`}
-            >
-              <span className={isCritic ? "text-[var(--cm-warning)]" : "text-[var(--cm-accent)]"}>✓</span>
-              <b className={`font-semibold ${isCritic ? "text-amber-100" : "text-[var(--cm-text-secondary)]"}`}>{String(index + 1).padStart(2, "0")}</b>
-              <span className={isCritic ? "font-semibold" : ""}>{AGENT_META[name].label}</span>
-            </a>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-col items-center gap-3">
-        <div
-          className="grid h-40 w-40 place-items-center rounded-full p-2"
-          style={{
-            background: `conic-gradient(${scoreColor(report.recommendation)} ${Math.max(0, Math.min(100, report.score)) * 3.6}deg, var(--cm-border) 0deg)`,
-          }}
-        >
-          <div className="grid h-full w-full place-items-center rounded-full bg-[var(--cm-background)] text-center">
-            <div>
-              <div className="[font-family:var(--cm-font-mono)] text-6xl font-semibold leading-none">{report.score}</div>
-              <div className="mt-1 [font-family:var(--cm-font-mono)] text-[10px] uppercase tracking-[0.08em] text-[var(--cm-text-muted)]">/ 100</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 [font-family:var(--cm-font-mono)] text-xs text-[var(--cm-text-muted)]">
-          <span>Initial <b className="text-[var(--cm-text-secondary)]">{baseScore}</b></span>
-          <span>·</span>
-          <span>Critic adjustment <span className="text-[var(--cm-critical)]">-{adjustment?.penalty ?? Math.max(0, baseScore - report.score)}</span></span>
-        </div>
-
-        <span className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 [font-family:var(--cm-font-mono)] text-sm font-semibold tracking-[0.04em] ${recommendationClass(report.recommendation)}`}>
-          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          {report.recommendation}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function ReportPhase({ analysis, onReset }: { analysis: AnalysisResult; onReset: () => void }) {
   return (
     <section className="flex flex-col">
-      <ScoreTransition analysis={analysis} />
-
-      <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_380px] lg:p-6">
+      <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-6">
         <div className="min-w-0 space-y-5">
           <ReportView
             report={analysis.report}
@@ -675,8 +593,6 @@ function ReportPhase({ analysis, onReset }: { analysis: AnalysisResult; onReset:
             onChainReceipt={analysis.onChainReceipt}
           />
           <MemoryPanel memories={analysis.relevantMemories} />
-          <StorageReceipt receipt={analysis.receipt} />
-          <RetrievedReportPanel defaultStorageUri={analysis.receipt.storageUri} />
           <button
             type="button"
             onClick={onReset}

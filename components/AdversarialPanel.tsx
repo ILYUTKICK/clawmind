@@ -466,9 +466,13 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
             )}
           </div>
 
-          <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4">
-            <h3 className="mb-4 text-sm font-semibold text-[var(--cm-text-primary)]">Agent claims</h3>
-            <div className="grid gap-3 md:grid-cols-2">
+          <details className="group rounded-lg border border-[var(--cm-border)] bg-black/20">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+              <span className="text-sm font-semibold text-[var(--cm-text-primary)]">Full agent trace</span>
+              <span className="font-mono text-xs text-[var(--cm-text-muted)] group-open:hidden">{steps.length} steps</span>
+              <span className="hidden font-mono text-xs text-[var(--cm-text-muted)] group-open:inline">hide</span>
+            </summary>
+            <div className="grid gap-3 border-t border-[var(--cm-border)] p-4 md:grid-cols-2">
               {AGENT_CLAIMS.map((agent) => {
                 const step = stepMap.get(agent.name);
                 const inactive = !step || step.status === "pending";
@@ -496,7 +500,7 @@ export function AdversarialPanel({ steps, report }: AdversarialPanelProps) {
                 );
               })}
             </div>
-          </div>
+          </details>
         </div>
 
         <div className="space-y-4">
