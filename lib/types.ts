@@ -1,5 +1,13 @@
 export type AgentStatus = "pending" | "running" | "completed" | "failed";
 export type ValidationMode = "NO_SCHEMA" | "WEAK" | "STRICT" | "RETRY" | "FALLBACK";
+export type AgentProvider =
+  | "0G_COMPUTE"
+  | "0G_STORAGE"
+  | "0G_CHAIN"
+  | "LOCAL_EMBEDDINGS"
+  | "LOCAL_FALLBACK"
+  | "NOT_CONFIGURED";
+export type AgentCostStatus = "not_reported" | "not_applicable";
 
 export type AgentName =
   | "memory_retrieval"
@@ -22,10 +30,15 @@ export type AgentStep = {
   output?: string;
   startedAt?: string;
   finishedAt?: string;
+  durationMs?: number;
   error?: string;
   model?: string;  
   modelFamily?: string;
   modelId?: string;
+  provider?: AgentProvider;
+  inputChars?: number;
+  outputChars?: number;
+  costStatus?: AgentCostStatus;
   skill?: string;
   validation?: {
     validated: boolean;
@@ -37,6 +50,31 @@ export type AgentStep = {
     errors?: string[];
     structuredData?: unknown; 
   };
+};
+
+export type AgentTraceSnapshot = {
+  name: AgentName;
+  label: string;
+  status: AgentStatus;
+  startedAt?: string;
+  finishedAt?: string;
+  durationMs?: number;
+  model?: string;
+  modelFamily?: string;
+  provider?: AgentProvider;
+  inputChars?: number;
+  outputChars?: number;
+  error?: string;
+  costStatus: AgentCostStatus;
+};
+
+export type AnalysisTraceSummary = {
+  totalDurationMs: number;
+  completedSteps: number;
+  failedSteps: number;
+  providerBreakdown: Record<string, number>;
+  slowestStep?: AgentTraceSnapshot;
+  steps: AgentTraceSnapshot[];
 };
 
 export type RiskSeverity = "low" | "medium" | "high" | "critical";

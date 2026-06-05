@@ -5,6 +5,33 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 type Recommendation = "GO" | "NO_GO" | "INVESTIGATE_MORE";
 type AnalysisSource = "web" | "mcp";
+type AgentStatus = "pending" | "running" | "completed" | "failed";
+type AgentCostStatus = "not_reported" | "not_applicable";
+
+type AgentTraceSnapshot = {
+  name: string;
+  label: string;
+  status: AgentStatus;
+  startedAt?: string;
+  finishedAt?: string;
+  durationMs?: number;
+  model?: string;
+  modelFamily?: string;
+  provider?: string;
+  inputChars?: number;
+  outputChars?: number;
+  error?: string;
+  costStatus: AgentCostStatus;
+};
+
+type AnalysisTraceSummary = {
+  totalDurationMs: number;
+  completedSteps: number;
+  failedSteps: number;
+  providerBreakdown: Record<string, number>;
+  slowestStep?: AgentTraceSnapshot;
+  steps: AgentTraceSnapshot[];
+};
 
 type JudgeRecentAnalysis = {
   analysisId: number;
@@ -29,6 +56,7 @@ type JudgeAnalysisMetric = {
   criticResolvedChallenges: number;
   criticUnresolvedChallenges: number;
   criticPenalty: number;
+  trace?: AnalysisTraceSummary;
 };
 
 export type StatsJudgeData = {
@@ -80,6 +108,23 @@ export type StatsJudgeData = {
     unresolvedChallenges: number;
     averageChallenges: number;
     averagePenalty: number;
+  };
+  observability: {
+    sampleSize: number;
+    averageDurationMs: number;
+    averageCompletedSteps: number;
+    failedStepTotal: number;
+    providerBreakdown: Record<string, number>;
+    slowestStep: {
+      name: string;
+      label: string;
+      samples: number;
+      averageDurationMs: number;
+      maxDurationMs: number;
+      provider?: string;
+    } | null;
+    latestTrace: AnalysisTraceSummary | null;
+    costStatus: "not_reported";
   };
   mcpUsage: {
     trackedAnalyses: number;
@@ -160,6 +205,25 @@ function formatGeneratedAt(iso?: string): string {
   }).format(new Date(iso));
 }
 
+function formatDurationMs(durationMs?: number): string {
+  if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return "not recorded";
+  }
+
+  if (durationMs < 1_000) {
+    return `${Math.round(durationMs)}ms`;
+  }
+
+  const seconds = durationMs / 1_000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
 function recommendationTone(recommendation: Recommendation) {
   if (recommendation === "GO") {
     return {
@@ -197,6 +261,22 @@ function sourceTone(source: FeedRow["source"]): string {
   }
 
   return "border-[var(--cm-border)] bg-black/20 text-[var(--cm-text-muted)]";
+}
+
+function statusTone(status: AgentStatus): string {
+  if (status === "completed") {
+    return "text-[var(--cm-accent)]";
+  }
+
+  if (status === "failed") {
+    return "text-[var(--cm-critical)]";
+  }
+
+  if (status === "running") {
+    return "text-[var(--cm-warning)]";
+  }
+
+  return "text-[var(--cm-text-muted)]";
 }
 
 function getExplorerTxUrl(explorerBaseUrl: string, txHash?: string): string | undefined {
@@ -604,6 +684,134 @@ function FeedTable({
   );
 }
 
+function ObservabilityPanel({
+  observability,
+}: {
+  observability: StatsJudgeData["observability"];
+}) {
+  const latestTrace = observability.latestTrace;
+  const traceSteps = latestTrace?.steps ?? [];
+  const maxStepDuration = Math.max(
+    1,
+    ...traceSteps.map((step) => step.durationMs ?? 0),
+  );
+  const providerEntries = Object.entries(observability.providerBreakdown)
+    .sort((a, b) => b[1] - a[1]);
+
+  return (
+    <section className="rounded-lg border border-[var(--cm-border)] bg-[var(--cm-surface)] p-5">
+      <PanelHeader
+        eyebrow="Pipeline observability"
+        title="Per-agent trace latency"
+        meta={`${observability.sampleSize} traced`}
+      />
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-3">
+          <p className="font-mono text-xs uppercase text-[var(--cm-text-muted)]">Avg runtime</p>
+          <p className="mt-2 font-mono text-2xl text-[var(--cm-text-primary)]">
+            {formatDurationMs(observability.averageDurationMs)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-3">
+          <p className="font-mono text-xs uppercase text-[var(--cm-text-muted)]">Steps completed</p>
+          <p className="mt-2 font-mono text-2xl text-[var(--cm-text-primary)]">
+            {observability.averageCompletedSteps.toFixed(1)}
+          </p>
+        </div>
+        <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-3">
+          <p className="font-mono text-xs uppercase text-[var(--cm-text-muted)]">Failed steps</p>
+          <p className={cx("mt-2 font-mono text-2xl", observability.failedStepTotal > 0 ? "text-[var(--cm-critical)]" : "text-[var(--cm-text-primary)]")}>
+            {observability.failedStepTotal}
+          </p>
+        </div>
+        <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-3">
+          <p className="font-mono text-xs uppercase text-[var(--cm-text-muted)]">Cost</p>
+          <p className="mt-2 font-mono text-lg text-[var(--cm-warning)]">not reported</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="space-y-3">
+          {traceSteps.length > 0 ? (
+            traceSteps.map((step) => {
+              const width = step.durationMs
+                ? Math.max(4, Math.round((step.durationMs / maxStepDuration) * 100))
+                : 0;
+
+              return (
+                <div key={`${step.name}-${step.startedAt ?? ""}`} className="grid gap-2 rounded-lg border border-[var(--cm-border)] bg-black/20 p-3">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-sm text-[var(--cm-text-primary)]">{step.label}</p>
+                      <p className="mt-1 truncate font-mono text-xs text-[var(--cm-text-muted)]">
+                        {step.provider ?? "unknown"} · {step.model ?? "model unknown"}
+                      </p>
+                    </div>
+                    <span className={cx("font-mono text-xs uppercase", statusTone(step.status))}>
+                      {step.status}
+                    </span>
+                    <span className="font-mono text-sm text-[var(--cm-text-secondary)]">
+                      {formatDurationMs(step.durationMs)}
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-white/[0.05]">
+                    <div
+                      className={cx(
+                        "h-full rounded-full",
+                        step.status === "failed" ? "bg-[var(--cm-critical)]" : "bg-[var(--cm-accent)]",
+                      )}
+                      style={{ width: `${width}%` }}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-[var(--cm-text-muted)]">
+                    <span>in {step.inputChars ?? 0} chars</span>
+                    <span>out {step.outputChars ?? 0} chars</span>
+                    <span>cost {step.costStatus === "not_applicable" ? "n/a" : "not reported"}</span>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 p-4 text-sm text-[var(--cm-text-muted)]">
+              No completed pipeline traces are available yet.
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-[var(--cm-border)] bg-black/20 px-4">
+          <ReceiptRow
+            label="Latest runtime"
+            value={formatDurationMs(latestTrace?.totalDurationMs)}
+          />
+          <ReceiptRow
+            label="Latest complete"
+            value={latestTrace ? `${latestTrace.completedSteps} steps` : "not tracked"}
+            tone={latestTrace?.completedSteps ? "accent" : undefined}
+          />
+          <ReceiptRow
+            label="Slowest avg"
+            value={
+              observability.slowestStep
+                ? `${observability.slowestStep.label} · ${formatDurationMs(observability.slowestStep.averageDurationMs)}`
+                : "not tracked"
+            }
+            tone={observability.slowestStep ? "warning" : undefined}
+          />
+          <ReceiptRow
+            label="Provider mix"
+            value={
+              providerEntries.length > 0
+                ? providerEntries.map(([provider, count]) => `${provider} ${count}`).join(" / ")
+                : "not tracked"
+            }
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function EmptyState() {
   return (
     <main className="min-h-screen bg-[var(--cm-background)] text-[var(--cm-text-primary)]">
@@ -927,6 +1135,8 @@ export function StatsDashboard({ data, version, buildHash }: StatsDashboardProps
             </p>
           </div>
         </section>
+
+        <ObservabilityPanel observability={liveData.observability} />
 
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.55fr)]">
           <div className="overflow-hidden rounded-lg border border-[var(--cm-border)] bg-[var(--cm-surface)]">

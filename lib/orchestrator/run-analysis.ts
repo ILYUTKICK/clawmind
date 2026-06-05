@@ -4,6 +4,7 @@ import { runFinalAgent } from "@/lib/agents/final-agent";
 import { runPlannerAgent } from "@/lib/agents/planner";
 import { runResearchAgent } from "@/lib/agents/researcher";
 import { runRiskAgent } from "@/lib/agents/risk-agent";
+import { getComputeProviderLabel } from "@/lib/compute/compute-status";
 import { getModelForAgent } from "@/lib/compute/model-router";
 import { formatMemoryContext, getRelevantMemories, saveGeneratedMemoryRecord } from "@/lib/memory/memory-manager";
 import { rememberLatestMemoryIndexUri } from "@/lib/memory/persistent-memory-store";
@@ -11,7 +12,7 @@ import { saveAnalysisReceipt } from "@/lib/storage/storage-receipt";
 import { saveMemoryIndexToZeroGStorage } from "@/lib/storage/zero-g-memory-index";
 import { recordAnalysisOnChain, buildOnChainReceipt } from "@/lib/contracts/analysis-registry";
 import { recordAnalysisMetric } from "@/lib/metrics/analysis-metrics";
-import { AgentName, AgentStep, AnalysisResult, AnalysisSource } from "@/lib/types";
+import { AgentName, AgentProvider, AgentStep, AnalysisResult, AnalysisSource } from "@/lib/types";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -19,6 +20,27 @@ function nowIso(): string {
 
 function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function getDurationFromStep(step: AgentStep, finishedAt: string): number | undefined {
+  if (!step.startedAt) {
+    return undefined;
+  }
+
+  const startedMs = Date.parse(step.startedAt);
+  const finishedMs = Date.parse(finishedAt);
+
+  if (!Number.isFinite(startedMs) || !Number.isFinite(finishedMs)) {
+    return undefined;
+  }
+
+  return Math.max(0, finishedMs - startedMs);
+}
+
+function getCostStatus(provider?: AgentProvider): AgentStep["costStatus"] {
+  return provider === "LOCAL_EMBEDDINGS" || provider === "LOCAL_FALLBACK" || provider === "NOT_CONFIGURED"
+    ? "not_applicable"
+    : "not_reported";
 }
 
 async function timeOperation<T>(
@@ -45,33 +67,44 @@ async function timeOperation<T>(
 
 function createRunningStep(name: AgentName, label: string, input: string): AgentStep {
   const modelConfig = getModelForAgent(name);
+  const provider = getComputeProviderLabel();
 
   return {
     name,
     label,
     status: "running",
     input,
+    inputChars: input.length,
     model: modelConfig.model,
     modelFamily: "0G Compute",
+    provider,
+    costStatus: getCostStatus(provider),
     startedAt: nowIso(),
   };
 }
 
-function completeStep(step: AgentStep, output: string): AgentStep {
+function completeStep(step: AgentStep, output: string, durationMs?: number): AgentStep {
+  const finishedAt = nowIso();
+
   return {
     ...step,
     status: "completed",
     output,
-    finishedAt: nowIso(),
+    outputChars: output.length,
+    durationMs: durationMs ?? getDurationFromStep(step, finishedAt),
+    finishedAt,
   };
 }
 
 function failStep(step: AgentStep, error: string): AgentStep {
+  const finishedAt = nowIso();
+
   return {
     ...step,
     status: "failed",
     error,
-    finishedAt: nowIso(),
+    durationMs: getDurationFromStep(step, finishedAt),
+    finishedAt,
   };
 }
 
@@ -110,19 +143,26 @@ export async function runAnalysis(
     await timeOperation("Memory retrieval", () => getRelevantMemories(task));
   const memoryContext = formatMemoryContext(relevantMemories);
 
+  const memoryRetrievalOutput = [
+    `Found ${relevantMemories.length} relevant memory record(s).`,
+    `Completed in ${formatDuration(memoryRetrievalDurationMs)}.`,
+    "Memory source: local cache + 0G Storage memory index when available.",
+    memoryContext,
+  ].join("\n");
+
   await pushStep({
     name: "memory_retrieval",
     label: "Memory Retrieval",
     status: "completed",
     input: task,
+    inputChars: task.length,
     model: "all-MiniLM-L6-v2",
     modelFamily: "Local embeddings",
-    output: [
-      `Found ${relevantMemories.length} relevant memory record(s).`,
-      `Completed in ${formatDuration(memoryRetrievalDurationMs)}.`,
-      "Memory source: local cache + 0G Storage memory index when available.",
-      memoryContext,
-    ].join("\n"),
+    provider: "LOCAL_EMBEDDINGS",
+    costStatus: "not_applicable",
+    output: memoryRetrievalOutput,
+    outputChars: memoryRetrievalOutput.length,
+    durationMs: memoryRetrievalDurationMs,
     startedAt: memoryStart,
     finishedAt: nowIso(),
   }, "planner");
@@ -134,10 +174,10 @@ export async function runAnalysis(
   const plannerIdx = steps.length;
   await pushStep(plannerStep, "planner");
 
-  const { result: plan } = await timeOperation("Planner Agent", () =>
+  const { result: plan, durationMs: plannerDurationMs } = await timeOperation("Planner Agent", () =>
     runPlannerAgent(task, memoryContext),
   );
-  await updateStep(plannerIdx, completeStep(plannerStep, plan), "researcher");
+  await updateStep(plannerIdx, completeStep(plannerStep, plan, plannerDurationMs), "researcher");
 
   // ============================================================
   // Step 3: Research Agent
@@ -146,10 +186,10 @@ export async function runAnalysis(
   const researcherIdx = steps.length;
   await pushStep(researcherStep, "researcher");
 
-  const { result: researchOutput } = await timeOperation("Research Agent", () =>
+  const { result: researchOutput, durationMs: researcherDurationMs } = await timeOperation("Research Agent", () =>
     runResearchAgent(task, plan),
   );
-  await updateStep(researcherIdx, completeStep(researcherStep, researchOutput), "risk_agent+architect");
+  await updateStep(researcherIdx, completeStep(researcherStep, researchOutput, researcherDurationMs), "risk_agent+architect");
 
   // ============================================================
   // Steps 4+5: Risk Agent + Architect Agent IN PARALLEL
@@ -164,16 +204,24 @@ export async function runAnalysis(
 
   const [riskResult, architectResult] = await Promise.all([
     timeOperation("Risk Agent", () => runRiskAgent(task, researchOutput, memoryContext))
-      .then((output) => ({ output, error: null as string | null }))
-      .catch((err) => ({ output: null, error: err instanceof Error ? err.message : "Risk agent failed" })),
+      .then((output) => ({ output, durationMs: output.durationMs, error: null as string | null }))
+      .catch((err) => ({
+        output: null,
+        durationMs: undefined,
+        error: err instanceof Error ? err.message : "Risk agent failed",
+      })),
 
     timeOperation("Architect Agent", () => runArchitectAgent(task, researchOutput, ""))
-      .then((output) => ({ output, error: null as string | null }))
-      .catch((err) => ({ output: null, error: err instanceof Error ? err.message : "Architect agent failed" })),
+      .then((output) => ({ output, durationMs: output.durationMs, error: null as string | null }))
+      .catch((err) => ({
+        output: null,
+        durationMs: undefined,
+        error: err instanceof Error ? err.message : "Architect agent failed",
+      })),
   ]);
 
   if (riskResult.output) {
-    await updateStep(riskIdx, completeStep(riskStep, riskResult.output.result), "critic");
+    await updateStep(riskIdx, completeStep(riskStep, riskResult.output.result, riskResult.durationMs), "critic");
   } else {
     await updateStep(riskIdx, failStep(riskStep, riskResult.error ?? "Unknown error"), "critic");
   }
@@ -181,7 +229,7 @@ export async function runAnalysis(
   const riskOutput = riskResult.output?.result ?? "Risk analysis unavailable — using fallback risk assessment.";
 
   if (architectResult.output) {
-    await updateStep(architectIdx, completeStep(architectStep, architectResult.output.result), "critic");
+    await updateStep(architectIdx, completeStep(architectStep, architectResult.output.result, architectResult.durationMs), "critic");
   } else {
     await updateStep(architectIdx, failStep(architectStep, architectResult.error ?? "Unknown error"), "critic");
   }
@@ -195,10 +243,10 @@ export async function runAnalysis(
   const criticIdx = steps.length;
   await pushStep(criticStep, "critic");
 
-  const { result: critiqueOutput } = await timeOperation("Critic Agent", () =>
+  const { result: critiqueOutput, durationMs: criticDurationMs } = await timeOperation("Critic Agent", () =>
     runCriticAgent(task, plan, researchOutput, riskOutput, architectureOutput),
   );
-  await updateStep(criticIdx, completeStep(criticStep, JSON.stringify(critiqueOutput)), "final_agent");
+  await updateStep(criticIdx, completeStep(criticStep, JSON.stringify(critiqueOutput), criticDurationMs), "final_agent");
 
   // ============================================================
   // Step 7: Final Decision Agent
@@ -207,7 +255,7 @@ export async function runAnalysis(
   const finalIdx = steps.length;
   await pushStep(finalStep, "final_agent");
 
-  const { result: finalResult } = await timeOperation("Final Decision Agent", () =>
+  const { result: finalResult, durationMs: finalDurationMs } = await timeOperation("Final Decision Agent", () =>
     runFinalAgent({
       task,
       memories: relevantMemories,
@@ -219,7 +267,7 @@ export async function runAnalysis(
     }),
   );
 
-  await updateStep(finalIdx, completeStep(finalStep, finalResult.rawOutput), "report_storage");
+  await updateStep(finalIdx, completeStep(finalStep, finalResult.rawOutput, finalDurationMs), "report_storage");
 
   // ============================================================
   // Step 8: Persist report to 0G Storage
@@ -232,6 +280,8 @@ export async function runAnalysis(
     ),
     model: "0G Storage",
     modelFamily: "0G Storage",
+    provider: "0G_STORAGE",
+    costStatus: "not_reported",
   };
   const reportStorageIdx = steps.length;
   await pushStep(reportStorageStep, "report_storage");
@@ -246,14 +296,19 @@ export async function runAnalysis(
 
   await updateStep(
     reportStorageIdx,
-    completeStep(
-      reportStorageStep,
-      [
-        `Saved report through ${receipt.provider} in ${formatDuration(reportStorageDurationMs)}.`,
-        `Report hash: ${receipt.reportHash}.`,
-        `Report URI: ${receipt.storageUri ?? "not available"}.`,
-      ].join(" "),
-    ),
+    {
+      ...completeStep(
+        reportStorageStep,
+        [
+          `Saved report through ${receipt.provider} in ${formatDuration(reportStorageDurationMs)}.`,
+          `Report hash: ${receipt.reportHash}.`,
+          `Report URI: ${receipt.storageUri ?? "not available"}.`,
+        ].join(" "),
+        reportStorageDurationMs,
+      ),
+      provider: receipt.provider,
+      costStatus: getCostStatus(receipt.provider),
+    },
     "memory_index+onchain_registry",
   );
 
@@ -267,6 +322,8 @@ export async function runAnalysis(
     ...createRunningStep("memory_index", "Memory Index", task),
     model: "all-MiniLM-L6-v2 + 0G Storage",
     modelFamily: "Local embeddings + 0G Storage",
+    provider: "0G_STORAGE",
+    costStatus: "not_reported",
   };
   const memoryIndexIdx = steps.length;
   await pushStep(memoryIndexStep, "memory_index+onchain_registry");
@@ -279,6 +336,8 @@ export async function runAnalysis(
     ),
     model: "EIP-712 operator signature",
     modelFamily: "0G Chain",
+    provider: "0G_CHAIN",
+    costStatus: "not_reported",
   };
   const onChainIdx = steps.length;
   await pushStep(onChainStep, "memory_index+onchain_registry");
@@ -355,7 +414,11 @@ export async function runAnalysis(
 
     await updateStep(
       onChainIdx,
-      completeStep(onChainStep, onChainLines.join(" ")),
+      {
+        ...completeStep(onChainStep, onChainLines.join(" "), onChainDurationMs),
+        provider: onChainReceipt.provider,
+        costStatus: getCostStatus(onChainReceipt.provider),
+      },
       "memory_index",
     );
 
@@ -378,16 +441,20 @@ export async function runAnalysis(
 
   await updateStep(
     memoryIndexIdx,
-    completeStep(
-      memoryIndexStep,
-      [
-        `Generated persistent memory ${generatedMemoryResult.memory.id} in ${formatDuration(memoryPreparationDurationMs)}.`,
-        `Memory index saved through ${memoryIndexReceipt.provider} in ${formatDuration(memoryIndexDurationMs)}.`,
-        `Memory index hash: ${memoryIndexReceipt.reportHash}.`,
-        `Memory index URI: ${memoryIndexReceipt.storageUri ?? "not available"}.`,
-        "If the memory index URI starts with 0g://, later runs can load it through ZERO_G_MEMORY_INDEX_URI or the local latest-memory-index-uri.txt pointer.",
-      ].join(" "),
-    ),
+    {
+      ...completeStep(
+        memoryIndexStep,
+        [
+          `Generated persistent memory ${generatedMemoryResult.memory.id} in ${formatDuration(memoryPreparationDurationMs)}.`,
+          `Memory index saved through ${memoryIndexReceipt.provider} in ${formatDuration(memoryIndexDurationMs)}.`,
+          `Memory index hash: ${memoryIndexReceipt.reportHash}.`,
+          `Memory index URI: ${memoryIndexReceipt.storageUri ?? "not available"}.`,
+          "If the memory index URI starts with 0g://, later runs can load it through ZERO_G_MEMORY_INDEX_URI or the local latest-memory-index-uri.txt pointer.",
+        ].join(" "),
+      ),
+      provider: memoryIndexReceipt.provider,
+      costStatus: getCostStatus(memoryIndexReceipt.provider),
+    },
     "completed",
   );
 

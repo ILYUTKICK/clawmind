@@ -145,6 +145,7 @@ type JudgeData = {
   analysesPerHour: JudgeAnalysesPerHour[];
   scoreDistribution: JudgeScoreDistribution;
   criticEffectiveness: AnalysisMetricsSummary["critic"];
+  observability: AnalysisMetricsSummary["observability"];
   mcpUsage: JudgeMcpUsageStats;
   analysisMetricsRecent: AnalysisMetric[];
 
@@ -511,6 +512,7 @@ export async function GET(): Promise<NextResponse> {
       analysesPerHour,
       scoreDistribution,
       criticEffectiveness: metricsSummary.critic,
+      observability: metricsSummary.observability,
       mcpUsage,
       analysisMetricsRecent: signedMetrics.slice(0, 10),
       memory,
