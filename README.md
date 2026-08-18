@@ -38,6 +38,28 @@ The final decision is influenced by the evidence collected by the agents and by 
 
 ---
 
+## Demo
+
+### Multi-Agent Analysis
+
+![ClawMind multi-agent analysis](docs/images/analysis.png)
+
+ClawMind separates the reasoning workflow into specialized stages for memory retrieval, planning, research, risk assessment, architecture review, adversarial critique, and final decision-making.
+
+### Critic-Driven Evaluation
+
+![ClawMind critic-driven evaluation](docs/images/critic.png)
+
+The Critic produces structured challenges with severity levels and explanations. Unresolved challenges feed directly into the final score adjustment.
+
+### Verifiable Report Provenance
+
+![ClawMind verification receipt](docs/images/receipt.png)
+
+Completed analyses are stored with provenance metadata so the generated report can be independently identified and verified.
+
+---
+
 ## Agent Pipeline
 
 ### Planner
